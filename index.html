@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+    --f:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --white:#fff;--black:#1d1d1f;
+    --g50:#fafafa;--g100:#f5f5f7;--g200:#e8e8ed;--g300:#d2d2d7;--g400:#aeaeb2;--g500:#86868b;--g600:#6e6e73;--g700:#48484a;
+    --blue:#007aff;--blue2:#0055d4;--blue-bg:rgba(0,122,255,0.08);
+    --green:#30d158;--green-bg:rgba(48,209,88,0.1);
+    --orange:#ff9f0a;--orange-bg:rgba(255,159,10,0.1);
+    --red:#ff453a;--red-bg:rgba(255,69,58,0.08);
+    --purple:#bf5af2;--purple-bg:rgba(191,90,242,0.08);
+    --teal:#64d2ff;
+    --r:16px;--r2:12px;--r3:8px;
+}
+html,body{height:100%;overflow:hidden;font-family:var(--f);color:var(--black);background:var(--g100);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* ===== TOP NAV ===== */
+nav{
+    height:52px;display:flex;align-items:center;padding:0 20px;gap:10px;
+    background:rgba(255,255,255,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-bottom:0.5px solid var(--g200);position:relative;z-index:100;
+}
+nav .brand{font-size:17px;font-weight:600;letter-spacing:-0.4px;color:var(--black)}
+nav .dot{width:4px;height:4px;border-radius:50%;background:var(--g300);margin:0 6px}
+nav input{
+    height:30px;border:none;background:var(--g100);border-radius:8px;padding:0 10px;
+    font:13px/30px var(--f);color:var(--black);outline:none;transition:all .2s;
+}
+nav input:focus{background:var(--white);box-shadow:0 0 0 3px rgba(0,122,255,0.25)}
+nav input::placeholder{color:var(--g400)}
+nav #inp-key{width:150px}
+nav #inp-domain{width:180px}
+nav #inp-search{width:200px;margin-left:auto}
+nav .nbtn{
+    height:30px;padding:0 14px;border:none;border-radius:980px;
+    font:500 12px/30px var(--f);cursor:pointer;transition:all .2s;
+}
+nav .nbtn.primary{background:var(--blue);color:var(--white)}
+nav .nbtn.primary:hover{background:var(--blue2)}
+nav .nbtn.ghost{background:none;color:var(--g600)}
+nav .nbtn.ghost:hover{background:var(--g100)}
+nav .conn-status{font:500 11px var(--f);color:var(--g400);white-space:nowrap}
+nav .conn-status.on{color:var(--green)}
+
+/* ===== LAYOUT ===== */
+.app{display:flex;height:calc(100vh - 52px)}
+
+/* ===== LEFT PANEL ===== */
+.left{width:360px;display:flex;flex-direction:column;background:var(--white);border-right:0.5px solid var(--g200)}
+.tabs{display:flex;padding:12px 12px 0;gap:4px}
+.tabs button{
+    height:32px;padding:0 14px;border:none;border-radius:980px;
+    font:500 12px var(--f);cursor:pointer;color:var(--g600);background:none;transition:all .15s;
+}
+.tabs button:hover{background:var(--g100)}
+.tabs button.on{background:var(--black);color:var(--white)}
+.tabs .cnt{margin-left:auto;font:500 11px var(--f);color:var(--g400);align-self:center;padding-right:4px}
+.list{flex:1;overflow-y:auto;padding:8px 0}
+.list::-webkit-scrollbar{width:0;background:transparent}
+.tkt{
+    display:flex;gap:12px;padding:12px 16px;cursor:pointer;
+    border-bottom:0.5px solid var(--g100);transition:background .12s;position:relative;
+}
+.tkt:hover{background:var(--g50)}
+.tkt.active{background:var(--blue-bg)}
+.tkt.active::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--blue)}
+.tkt .pri{width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0}
+.tkt .col{flex:1;min-width:0}
+.tkt .ttl{font:500 13px/1.3 var(--f);color:var(--black);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tkt .sub{font:12px var(--f);color:var(--g500);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tkt .right{text-align:right;flex-shrink:0}
+.tkt .time{font:11px var(--f);color:var(--g400)}
+.tkt .indicator{
+    display:inline-block;margin-top:4px;height:18px;padding:0 7px;border-radius:980px;
+    font:600 9px/18px var(--f);letter-spacing:0.3px;text-transform:uppercase;
+}
+.tkt .indicator.yours{background:var(--orange-bg);color:#b36b00}
+.tkt .indicator.wait{background:var(--green-bg);color:#1a8a3a}
+.tkt .indicator.new{background:var(--blue-bg);color:var(--blue)}
+.tkt .indicator.stale{background:var(--red-bg);color:#c00}
+.pgr{display:flex;gap:8px;padding:10px;justify-content:center;border-top:0.5px solid var(--g200)}
+.pgr button{
+    height:28px;padding:0 12px;border:0.5px solid var(--g200);border-radius:8px;
+    font:12px var(--f);cursor:pointer;background:var(--white);color:var(--g600);
+}
+.pgr button:disabled{opacity:.3;cursor:default}
+.pgr span{font:12px var(--f);color:var(--g400);align-self:center}
+
+/* ===== RIGHT PANEL ===== */
+.right-panel{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--g100)}
+#hdr{flex-shrink:0}
+#tab-bar{flex-shrink:0}
+#scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#scroll-area::-webkit-scrollbar{width:6px}
+#scroll-area::-webkit-scrollbar-track{background:transparent}
+#scroll-area::-webkit-scrollbar-thumb{background:var(--g300);border-radius:3px}
+.rpad{padding:24px 32px 60px;max-width:800px}
+
+.hdr-box{padding:20px 32px;background:var(--white);border-bottom:0.5px solid var(--g200)}
+.hdr-box h1{font:600 20px/1.35 var(--f);letter-spacing:-0.4px;color:var(--black);margin-bottom:8px}
+.hdr-box .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.hdr-box .hdr-actions{margin-top:10px}
+.btn-fd{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:980px;font:600 11px/1 var(--f);color:var(--white);background:linear-gradient(135deg,#0ea5e9,#6366f1);border:none;cursor:pointer;text-decoration:none;letter-spacing:0.2px;transition:opacity .15s}
+.btn-fd:hover{opacity:.85}
+.btn-fd svg{width:12px;height:12px;fill:currentColor}
+.chip{
+    height:22px;padding:0 9px;border-radius:980px;
+    font:600 10px/22px var(--f);letter-spacing:0.2px;display:inline-flex;align-items:center;
+}
+.chip-open{background:var(--blue-bg);color:var(--blue)}
+.chip-pending{background:var(--orange-bg);color:#b36b00}
+.chip-resolved{background:var(--green-bg);color:#1a8a3a}
+.chip-closed{background:var(--g100);color:var(--g500)}
+.chip-urg{background:var(--red-bg);color:var(--red)}
+.chip-high{background:var(--orange-bg);color:#c05500}
+.chip-med{background:#fff8e1;color:#9a7b00}
+.chip-low{background:var(--green-bg);color:#1a8a3a}
+.chip-meta{background:none;color:var(--g500);padding:0;font-weight:400;font-size:12px}
+
+.tab-row{display:flex;padding:0 32px;background:var(--white);border-bottom:0.5px solid var(--g200)}
+.tab-row button{
+    height:42px;padding:0 6px;margin:0 10px;border:none;border-bottom:2px solid transparent;
+    font:500 13px var(--f);color:var(--g500);background:none;cursor:pointer;transition:all .15s;
+}
+.tab-row button:hover{color:var(--black)}
+.tab-row button.on{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-row .bdg{
+    display:inline-flex;height:16px;padding:0 5px;border-radius:8px;
+    font:600 10px/16px var(--f);background:var(--g100);color:var(--g500);margin-left:4px;
+}
+.tab-row button.on .bdg{background:var(--blue-bg);color:var(--blue)}
+
+/* ===== SUMMARY CONTENT ===== */
+.action-strip{
+    display:flex;align-items:center;gap:14px;padding:18px 20px;border-radius:var(--r);margin-bottom:20px;
+    font:600 15px/1.3 var(--f);letter-spacing:-0.2px;
+    animation:fadeUp .4s ease;
+}
+.action-strip .emoji{font-size:24px}
+.action-strip .desc{flex:1}
+.action-strip .when{font:400 12px var(--f);opacity:.55}
+.action-strip.act-respond{background:linear-gradient(135deg,#fff7ed,#fff1e0);color:#7c2d12}
+.action-strip.act-waiting{background:linear-gradient(135deg,#faf5ff,#f3e8ff);color:#581c87}
+.action-strip.act-followup{background:linear-gradient(135deg,#fef2f2,#ffe4e6);color:#7f1d1d}
+.action-strip.act-new{background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e3a8a}
+
+.grid-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;animation:fadeUp .45s ease}
+.gs{background:var(--white);border-radius:var(--r2);padding:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.gs .n{font:700 24px var(--f);color:var(--blue);letter-spacing:-.5px}
+.gs .l{font:500 11px var(--f);color:var(--g500);margin-top:2px}
+
+.panel{background:var(--white);border-radius:var(--r);padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);animation:fadeUp .5s ease}
+.panel h2{font:600 11px var(--f);color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.panel p{font:14px/1.7 var(--f);color:var(--g700)}
+
+.steps-box{background:linear-gradient(135deg,#fffbeb,#fef9c3);border-radius:var(--r);padding:20px 22px;margin-bottom:16px;animation:fadeUp .47s ease}
+.steps-box h2{font:600 11px var(--f);color:#92400e;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.steps-box li{list-style:none;font:14px/1.7 var(--f);color:#78350f;padding:3px 0;display:flex;gap:8px}
+.steps-box li::before{content:"\2192";color:#d97706;font-weight:700}
+
+.exch-bubble{padding:12px 16px;border-radius:var(--r2);margin-bottom:8px;border-left:3px solid;font:13px/1.7 var(--f);animation:fadeUp .5s ease}
+.exch-bubble.agent{background:#f0f4ff;border-color:var(--blue);color:var(--g700)}
+.exch-bubble.customer{background:#faf5ff;border-color:var(--purple);color:var(--g700)}
+.exch-bubble .label{font:600 10px var(--f);color:var(--g400);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+
+.topic-list{display:flex;gap:6px;flex-wrap:wrap}
+.topic-pill{height:26px;padding:0 12px;border-radius:980px;font:500 12px/26px var(--f);background:var(--g100);color:var(--g600);transition:all .15s}
+.topic-pill:hover{background:var(--g200)}
+
+.tl-btn{font:500 13px var(--f);color:var(--blue);cursor:pointer;padding:8px 0;user-select:none;display:flex;align-items:center;gap:4px}
+.tl-btn:hover{color:var(--blue2)}
+.tl-entry{display:flex;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--g100);font:12px var(--f)}
+.tl-entry:last-child{border:none}
+.tl-entry .d{color:var(--g400);min-width:70px}
+.tl-entry .w{min-width:56px;font-weight:600}
+.tl-entry .w.agent{color:var(--blue)}
+.tl-entry .w.customer{color:var(--purple)}
+.tl-entry .w.note{color:var(--green)}
+.tl-entry .t{color:var(--g700);flex:1}
+
+/* ===== THREAD ===== */
+.bubble{margin-bottom:12px;border-radius:var(--r);padding:16px 20px;border-left:3px solid;animation:fadeUp .3s ease}
+.bubble.agent{background:#f0f4ff;border-color:var(--blue)}
+.bubble.customer{background:#faf5ff;border-color:var(--purple)}
+.bubble.note{background:#f0fdf4;border-color:var(--green)}
+.bubble .bh{display:flex;justify-content:space-between;margin-bottom:10px}
+.bubble .bh .nm{font:600 13px var(--f);color:var(--black)}
+.bubble .bh .dt{font:12px var(--f);color:var(--g400)}
+.bubble .bb{font:13px/1.8 var(--f);color:var(--g700)}
+.bubble .bb img{max-width:100%;border-radius:var(--r3);margin:8px 0}
+.bubble .bb a{color:var(--blue);text-decoration:none}
+.bubble .bb a:hover{text-decoration:underline}
+
+/* ===== REPLIES ===== */
+.rg{margin-bottom:24px}
+.rg h3{font:600 11px var(--f);color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.rc{
+    background:var(--white);border-radius:var(--r);padding:18px 20px;margin-bottom:10px;
+    box-shadow:0 1px 3px rgba(0,0,0,.04);border:1px solid transparent;
+    transition:all .2s;animation:fadeUp .3s ease;
+}
+.rc:hover{border-color:var(--blue);box-shadow:0 4px 12px rgba(0,122,255,.08)}
+.rc .rc-title{font:600 15px/1.3 var(--f);color:var(--black);letter-spacing:-.2px}
+.rc .rc-why{font:12px var(--f);color:var(--blue);margin-top:2px}
+.rc .rc-body{
+    margin-top:10px;padding:14px 16px;background:var(--g50);border-radius:var(--r2);
+    font:13px/1.7 var(--f);color:var(--g600);white-space:pre-wrap;
+    max-height:80px;overflow:hidden;position:relative;cursor:pointer;transition:max-height .3s;
+}
+.rc .rc-body.shut::after{content:'';position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,var(--g50));pointer-events:none}
+.rc .rc-body.open{max-height:1000px}
+.rc .rc-copy{
+    margin-top:10px;height:32px;padding:0 18px;border:none;border-radius:980px;
+    font:500 12px/32px var(--f);cursor:pointer;background:var(--blue);color:var(--white);transition:all .15s;
+}
+.rc .rc-copy:hover{background:var(--blue2)}
+.rc .rc-copy.did{background:var(--green)}
+.lang-badge{display:inline-block;padding:4px 12px;border-radius:980px;font:600 10px/1 var(--f);letter-spacing:0.3px;color:var(--blue);background:var(--blue-bg);margin-bottom:12px;text-transform:uppercase}
+
+.empty-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--g400);gap:8px;font:14px var(--f)}
+.loading-msg{text-align:center;padding:60px;color:var(--g400);font:13px var(--f)}
+.loading-msg::after{content:'';display:inline-block;width:14px;height:14px;border:2px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite;margin-left:8px;vertical-align:middle}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<nav>
+    <span class="brand">Support Hub</span>
+    <span class="dot"></span>
+    <input type="password" id="inp-key" placeholder="API Key">
+    <button class="nbtn ghost" onclick="toggleKey()">Show</button>
+    <input type="text" id="inp-domain" value="kyexpert.freshdesk.com">
+    <button class="nbtn primary" onclick="connect()">Connect</button>
+    <input type="text" id="inp-search" placeholder="Search tickets...">
+    <button class="nbtn primary" onclick="doSearch()">Search</button>
+    <span class="conn-status" id="conn-status"></span>
+</nav>
+
+<div class="app">
+    <!-- LEFT: ticket list -->
+    <div class="left">
+        <div class="tabs">
+            <button class="on" onclick="filt(this,2)">My Turn</button>
+            <button onclick="filt(this,3)">Waiting</button>
+            <button onclick="filt(this,'all')">All</button>
+            <span class="cnt" id="cnt"></span>
+            <button onclick="refresh()" title="Refresh" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:1rem;padding:2px 6px;color:var(--g500)">&#x21bb;</button>
+        </div>
+        <div class="list" id="list"><div class="empty-msg">Connect to load tickets</div></div>
+        <div class="pgr" id="pgr" style="display:none">
+            <button id="pb" onclick="pg(-1)">Prev</button><span id="pi"></span><button id="pn" onclick="pg(1)">Next</button>
+        </div>
+    </div>
+
+    <!-- RIGHT: detail (static structure = scroll works) -->
+    <div class="right-panel">
+        <div id="hdr"><div class="empty-msg" style="height:100%">Select a ticket</div></div>
+        <div id="tab-bar"></div>
+        <div id="scroll-area">
+            <div id="content"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const PC={1:'var(--green)',2:'var(--orange)',3:'var(--red)',4:'var(--red)'};
+const PN={1:'Low',2:'Medium',3:'High',4:'Urgent'};
+const PCLS={1:'chip-low',2:'chip-med',3:'chip-high',4:'chip-urg'};
+const SN={2:'Open',3:'Pending',4:'Resolved',5:'Closed'};
+const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed'};
+const ICLS={1:'pill-low',2:'pill-med',3:'pill-high',4:'pill-urg'};
+
+let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',allOpen:[],lr:{}};
+
+document.getElementById('inp-search').onkeydown=e=>{if(e.key==='Enter')doSearch()};
+document.getElementById('inp-key').onkeydown=e=>{if(e.key==='Enter')connect()};
+function toggleKey(){const i=document.getElementById('inp-key');i.type=i.type==='password'?'text':'password'}
+
+(function(){const k=localStorage.getItem('fd_apikey');if(k){document.getElementById('inp-key').value=k;setTimeout(connect,300)}})();
+
+async function api(p){
+    const r=await fetch('/fd/'+p,{headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom}});
+    if(!r.ok)throw new Error('API '+r.status);return r;
+}
+async function get(p){return(await api(p)).json()}
+
+async function connect(){
+    D.key=document.getElementById('inp-key').value.trim();
+    D.dom=document.getElementById('inp-domain').value.trim();
+    if(!D.key||!D.dom)return st('Enter key & domain');
+    st('Connecting...');
+    try{
+        const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';
+        localStorage.setItem('fd_apikey',D.key);st(D.anm,1);load();
+    }catch(e){
+        if(e.message.includes('404')){try{await get('tickets?per_page=1');localStorage.setItem('fd_apikey',D.key);st('Connected',1);load()}catch(e2){st('Failed')}}
+        else st('Failed: '+e.message);
+    }
+}
+
+async function loadAll(){
+    document.getElementById('list').innerHTML='<div class="loading-msg">Loading tickets</div>';
+    let q='"agent_id:'+D.aid+'"';
+    let all=[],pg=1;
+    while(true){
+        const d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);
+        const res=d.results||[];
+        all=all.concat(res);
+        if(res.length<30||pg>=10)break;
+        pg++;
+    }
+    D.allOpen=all.filter(t=>t.status!==4&&t.status!==5);
+    document.getElementById('list').innerHTML='<div class="loading-msg">Loading details 0/'+D.allOpen.length+'</div>';
+    D.lr={};
+    const contactCache={};
+    const companyCache={};
+    const batches=[];
+    for(let i=0;i<D.allOpen.length;i+=5)batches.push(D.allOpen.slice(i,i+5));
+    let done=0;
+    for(const batch of batches){
+        const results=await Promise.all(batch.map(t=>{
+            const cProm=get('tickets/'+t.id+'/conversations').catch(()=>[]);
+            const rProm=(t.requester_id&&!contactCache[t.requester_id])?get('contacts/'+t.requester_id).catch(()=>null):Promise.resolve(null);
+            return Promise.all([cProm,rProm]).then(([c,r])=>[t,c,r]);
+        }));
+        for(const[t,convs,contact]of results){
+            if(convs.length>0){
+                const last=convs[convs.length-1];
+                D.lr[t.id]=!!last.incoming;
+            }else{
+                D.lr[t.id]=true;
+            }
+            if(contact){contactCache[t.requester_id]=contact}
+            if(contactCache[t.requester_id]){
+                const ct=contactCache[t.requester_id];
+                t._reqName=ct.name||'Unknown';
+                if(ct.company_id&&!companyCache[ct.company_id]){
+                    try{companyCache[ct.company_id]=await get('companies/'+ct.company_id)}catch(e){}
+                }
+                t._company=companyCache[ct.company_id]?companyCache[ct.company_id].name:'';
+            }
+            done++;
+        }
+        document.getElementById('list').innerHTML='<div class="loading-msg">Loading details '+done+'/'+D.allOpen.length+'</div>';
+    }
+    applyFilter();
+}
+
+function applyFilter(){
+    if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
+    else if(D.fl===3)D.tks=D.allOpen.filter(t=>D.lr[t.id]===false).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
+    else D.tks=D.allOpen.slice();
+    D.pgs=1;
+    rl();up();document.getElementById('cnt').textContent=D.tks.length;
+}
+
+async function load(){
+    document.getElementById('list').innerHTML='<div class="loading-msg">Loading</div>';
+    try{
+        if(D.aid){
+            if(D.allOpen.length===0){await loadAll()}
+            else{applyFilter()}
+        }else{
+            D.tks=await get('tickets?per_page=100&page='+D.pg+'&order_by=updated_at&order_type=desc&include=requester');
+            rl();up();document.getElementById('cnt').textContent=D.tks.length;
+        }
+    }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
+}
+
+function rl(){
+    const el=document.getElementById('list');
+    if(!D.tks.length){el.innerHTML='<div class="empty-msg">No tickets</div>';return}
+    el.innerHTML=D.tks.map(t=>{
+        const ac=D.cur&&D.cur.id===t.id?'active':'';
+        const rq=t._reqName||(t.requester?t.requester.name:'Unknown');
+        const co=t._company||'';
+        const sub=co?(esc(rq)+' &middot; '+esc(co)):esc(rq);
+        const stale=Math.floor((Date.now()-new Date(t.updated_at))/864e5);
+        let ind='',ic='';
+        if(D.lr[t.id]===true){ind='yours';ic='YOUR TURN'}
+        else if(D.lr[t.id]===false){ind='wait';ic='WAITING'}
+        return '<div class="tkt '+ac+'" onclick="sel('+t.id+')">'+
+            '<div class="pri" style="background:'+(PC[t.priority]||'var(--g300)')+'"></div>'+
+            '<div class="col"><div class="ttl">#'+t.id+' '+esc(t.subject||'')+'</div><div class="sub">'+sub+'</div></div>'+
+            '<div class="right"><div class="time">'+ago(new Date(t.updated_at))+'</div>'+(ind?'<div class="indicator '+ind+'">'+ic+'</div>':'')+'</div></div>';
+    }).join('');
+}
+
+async function sel(id){
+    document.getElementById('hdr').innerHTML='';
+    document.getElementById('tab-bar').innerHTML='';
+    document.getElementById('content').innerHTML='<div class="loading-msg">Loading</div>';
+    try{
+        const[t,c]=await Promise.all([get('tickets/'+id+'?include=requester'),get('tickets/'+id+'/conversations')]);
+        D.cur=t;D.cvs=c;rl();renderRight();
+    }catch(e){document.getElementById('content').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
+}
+
+function renderRight(){
+    const t=D.cur,c=D.cvs;if(!t)return;
+    const rq=t.requester?t.requester.name:'Unknown';
+    const age=Math.floor((Date.now()-new Date(t.created_at))/864e5);
+    const stale=Math.floor((Date.now()-new Date(t.updated_at))/864e5);
+
+    document.getElementById('hdr').innerHTML=
+        '<div class="hdr-box"><h1>#'+t.id+' — '+esc(t.subject||'')+'</h1>'+
+        '<div class="chips">'+
+        '<span class="chip '+(SCLS[t.status]||'')+'">'+(SN[t.status]||t.status)+'</span>'+
+        '<span class="chip '+(PCLS[t.priority]||'')+'">'+(PN[t.priority]||'?')+'</span>'+
+        '<span class="chip chip-meta">'+esc(rq)+'</span>'+
+        '<span class="chip chip-meta">'+age+'d old</span>'+
+        '<span class="chip chip-meta">Updated '+(stale===0?'today':stale+'d ago')+'</span>'+
+        '</div>'+
+        '<div class="hdr-actions"><a class="btn-fd" href="https://help.kohyoung.com/a/tickets/'+t.id+'" target="_blank" rel="noopener"><svg viewBox="0 0 16 16"><path d="M9 2h5v5l-2-2-4 4-1.5-1.5L10.5 4 9 2zM3 3h4v1.5H3.5v8h8V9H13v4.5A1.5 1.5 0 0111.5 15h-8A1.5 1.5 0 012 13.5v-8A1.5 1.5 0 013.5 4H3V3z"/></svg>Open in Freshdesk</a></div>'+
+        '</div>';
+
+    document.getElementById('tab-bar').innerHTML=
+        '<div class="tab-row">'+
+        '<button class="on" onclick="tab(this,0)">Summary</button>'+
+        '<button onclick="tab(this,1)">Thread <span class="bdg">'+c.length+'</span></button>'+
+        '<button onclick="tab(this,2)">Quick Reply</button>'+
+        '</div>';
+
+    showPane(0);
+}
+
+function tab(b,i){b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');showPane(i)}
+
+function showPane(i){
+    const t=D.cur,c=D.cvs;
+    const el=document.getElementById('content');
+    el.scrollTop=0;
+    if(i===0)el.innerHTML='<div class="rpad">'+summaryHTML(t,c)+'</div>';
+    else if(i===1)el.innerHTML='<div class="rpad">'+threadHTML(t,c)+'</div>';
+    else el.innerHTML='<div class="rpad">'+replyHTML(t,c)+'</div>';
+    document.getElementById('scroll-area').scrollTop=0;
+}
+
+/* =============== SUMMARY =============== */
+function summaryHTML(t,c){
+    const m=msgs(t,c),a=ana(t,m);
+    let h='';
+
+    h+='<div class="action-strip act-'+a.sit+'"><span class="emoji">'+a.ico+'</span><span class="desc">'+a.lbl+'</span><span class="when">'+(a.stale>0?a.stale+'d ago':'today')+'</span></div>';
+
+    h+='<div class="grid-stats"><div class="gs"><div class="n">'+a.tot+'</div><div class="l">Messages</div></div><div class="gs"><div class="n">'+a.nc+'</div><div class="l">Customer</div></div><div class="gs"><div class="n">'+a.na+'</div><div class="l">Agent</div></div><div class="gs"><div class="n">'+a.age+'d</div><div class="l">Age</div></div></div>';
+
+    if(a.steps.length)h+='<div class="steps-box"><h2>What to Do Next</h2><ul>'+a.steps.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>';
+
+    const fc=m.find(x=>x.f==='Customer');
+    if(fc)h+='<div class="panel"><h2>Original Issue</h2><p>'+esc(trunc(fc.t,600))+'</p></div>';
+
+    const pub=m.filter(x=>x.f!=='Note').slice(-4);
+    if(pub.length){
+        h+='<div class="panel"><h2>Where You Left Off</h2>';
+        pub.forEach(x=>{
+            const cl=x.f==='Agent'?'agent':'customer';
+            h+='<div class="exch-bubble '+cl+'"><div class="label">'+x.f+' — '+new Date(x.d).toLocaleDateString()+'</div>'+esc(trunc(x.t,350))+'</div>';
+        });h+='</div>';
+    }
+
+    if(a.topics.length)h+='<div class="panel"><h2>Topics</h2><div class="topic-list">'+a.topics.map(x=>'<span class="topic-pill">'+esc(x)+'</span>').join('')+'</div></div>';
+
+    h+='<div class="panel"><div class="tl-btn" onclick="const n=this.nextElementSibling;n.style.display=n.style.display===\'none\'?\'block\':\'none\'">&#9660; Full timeline ('+m.length+')</div><div style="display:none">';
+    m.forEach(x=>{h+='<div class="tl-entry"><span class="d">'+new Date(x.d).toLocaleDateString()+'</span><span class="w '+x.f.toLowerCase()+'">'+x.f+'</span><span class="t">'+esc(trunc(x.t,120))+'</span></div>'});
+    h+='</div></div>';
+    return h;
+}
+
+/* =============== THREAD =============== */
+function threadHTML(t,c){
+    let h='';
+    if(t.description)h+='<div class="bubble customer"><div class="bh"><span class="nm">'+esc(t.requester?t.requester.name:'Customer')+' (Original)</span><span class="dt">'+new Date(t.created_at).toLocaleString()+'</span></div><div class="bb">'+safe(t.description)+'</div></div>';
+    c.forEach(x=>{
+        const tp=x.private?'note':(x.incoming?'customer':'agent');
+        const lb=x.private?'Private Note':(x.incoming?'Customer':'Agent');
+        h+='<div class="bubble '+tp+'"><div class="bh"><span class="nm">'+esc(x.from_email||lb)+' ('+lb+')</span><span class="dt">'+new Date(x.created_at).toLocaleString()+'</span></div><div class="bb">'+safe(x.body||'')+'</div></div>';
+    });
+    return h||'<div class="empty-msg">No conversations</div>';
+}
+
+/* =============== SMART REPLIES =============== */
+function detectLang(m){
+    const all=m.map(x=>x.t).join(' ');
+    const esWords=(all.match(/\b(hola|gracias|buenos|estimado|buen día|por favor|saludos|adjunto|revisamos|revisaré|quedo atento|quedamos|pendiente|sesión|remota|disponibilidad|horario|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|cordial|atencion|solicitud|actualización|instalación|calibración|verificar|configuración)\b/gi)||[]).length;
+    const enWords=(all.match(/\b(hello|thank you|thanks|please|regards|hi|dear|attached|issue|machine|review|kindly|appreciate|let me know|follow up|looking forward|availability|schedule|screenshot|resolve|investigate)\b/gi)||[]).length;
+    return esWords>enWords?'es':'en';
+}
+
+function analyzeAgentStyle(m){
+    const agentMsgs=m.filter(x=>x.f==='Agent');
+    if(!agentMsgs.length)return{greeting:'',signoff:'',usesName:false,formal:true,phrases:[]};
+
+    const texts=agentMsgs.map(x=>x.t);
+    const all=texts.join('\n');
+
+    let greeting='';
+    const greetPatterns=[
+        /^(Hola\s+[\w]+)/m,/^(Buenos?\s+(?:días?|tardes?|noches?)[\s,]*[\w]*)/mi,
+        /^(Estimado\/a?\s+[\w]+)/mi,/^(Buen día[\s,]*[\w]*)/mi,
+        /^(Hi\s+[\w]+)/m,/^(Hello\s+[\w]+)/m,/^(Dear\s+[\w]+)/m
+    ];
+    for(const rx of greetPatterns){
+        const match=all.match(rx);
+        if(match){greeting=match[1];break}
+    }
+
+    let signoff='';
+    const signPatterns=[
+        /(Saludos\.?)\s*$/mi,/(Quedo al pendiente\.?)\s*$/mi,/(Quedamos al pendiente\.?)\s*$/mi,
+        /(Saludos cordiales\.?)\s*$/mi,/(Quedo atento\.?)\s*$/mi,
+        /(Best regards\.?)\s*$/mi,/(Kind regards\.?)\s*$/mi,/(Regards\.?)\s*$/mi
+    ];
+    for(const rx of signPatterns){
+        const match=all.match(rx);
+        if(match){signoff=match[1].replace(/\.$/,'');break}
+    }
+
+    const phrases=[];
+    const phraseRx=[
+        /quedo al pendiente/gi,/quedo atento/gi,/quedamos al pendiente/gi,
+        /le comparto/gi,/le comento/gi,/me permito/gi,/por este medio/gi,
+        /de antemano/gi,/buen día/gi,/favor de/gi,
+        /let me know/gi,/looking forward/gi,/please find attached/gi,
+        /I will review/gi,/I will get back/gi
+    ];
+    phraseRx.forEach(rx=>{
+        const matches=all.match(rx);
+        if(matches&&matches.length>=1)phrases.push(matches[0]);
+    });
+
+    const usesName=!!all.match(/^(Hola|Hi|Hello|Dear|Estimad)\s+[A-Z]/m);
+    const formal=!!all.match(/(estimad|cordial|atento|de antemano|kindly|dear)/i);
+
+    return{greeting,signoff,usesName,formal,phrases};
+}
+
+function replyHTML(t,c){
+    const m=msgs(t,c),a=ana(t,m);
+    const nm=t.requester?t.requester.name:'Customer';
+    const firstName=(nm.split(' ')[0]||nm);
+    const subj=t.subject||'your request';
+    const allCust=m.filter(x=>x.f==='Customer');
+    const allAgent=m.filter(x=>x.f==='Agent');
+    const lastCust=allCust.length?allCust[allCust.length-1]:null;
+    const lastAgent=allAgent.length?allAgent[allAgent.length-1]:null;
+    const firstCust=allCust.length?allCust[0]:null;
+    const allText=m.map(x=>x.t).join(' ');
+    const allTextLow=allText.toLowerCase();
+
+    const lang=detectLang(m);
+    const sty=analyzeAgentStyle(m);
+    const ctx=extractContext(allTextLow,m,lastCust,lastAgent);
+
+    const hi=sty.greeting?sty.greeting.replace(/[\w]+$/,firstName):
+        (lang==='es'?'Hola '+firstName:'Hello '+firstName);
+    const bye=sty.signoff?sty.signoff:
+        (lang==='es'?'Saludos cordiales':'Best regards');
+
+    const L={
+        es:{
+            thankReach:'',
+            reviewed:'',
+            toInvestigate:'Para comprender mejor el problema, ¿nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?',
+            screenshots:'Capturas de pantalla del error',
+            logFiles:'Archivos de log de BRM',
+            swVersion:'Versión de KBR que están corriendo',
+            stepsRepro:'Pasos para reproducir el problema',
+            helpIdRoot:'',
+            scheduleSession:'¿Me puedes compartir las credenciales para la sesión remota por favor?',
+            prepareQuote:'Prepararé la cotización y se la enviaré a la brevedad.',
+            willLookInto:'Revisaré el tema y te daré seguimiento.',
+            remoteWouldHelp:'Para comprender mejor el problema, una sesión remota vía TeamViewer sería lo más eficiente. ¿Me podrías compartir las credenciales para conectarnos?',
+            pleaseTV:'Por favor:\n1. Tener TeamViewer instalado y listo\n2. Compartir el ID y contraseña',
+            gladResolved:'Me da gusto saber que'+(ctx.mainIssue?' el tema con '+ctx.mainIssue:' todo está funcionando')+'. Gracias por confirmar.',
+            afterRemote:'Después de nuestra sesión remota y los cambios realizados, por favor ',
+            letUsKnow:'avísenos si presenta algún problema adicional. Procederé a cerrar este ticket.',
+            thankConfirm:'Gracias por confirmar. Agendemos la sesión remota',
+            shareDateTime:' — por favor comparta su fecha y hora preferida',
+            beforeConnect:'Antes de conectarnos, por favor:\n1. Tener TeamViewer instalado y corriendo\n2. Compartir el ID y contraseña de TeamViewer\n3. '+(ctx.isError?'De ser posible, mantener el error visible en pantalla':'Tener BRM abierto y listo'),
+            thankSharing:'Gracias por compartir ',
+            theScreenshots:'las capturas',
+            theLogFiles:'los logs',
+            theInfo:'la información',
+            willReview:'Revisaré ',
+            them:'lo enviado',
+            this_:'esto',
+            getBackFindings:' y te daré seguimiento.',
+            ifNoticeMore:'Si notas algún detalle adicional sobre cuándo ocurre el problema, compártelo también.',
+            regQuestion:'Respecto a su consulta'+(ctx.mainIssue?' sobre '+ctx.mainIssue:'')+', estos son los pasos:',
+            step:'Paso',
+            backupFirst:'Por favor asegúrese de respaldar su KBR/configuración actual antes de hacer cambios.',
+            questionsProcess:'Avíseme si tiene alguna duda durante el proceso.',
+            persisting:' que el problema persiste',
+            additionalIssue:' sobre este problema adicional',
+            understandFrustrating:'Una disculpa por las molestias, revisaré esto a detalle.',
+            importantRightAway:'Lo revisaré de inmediato.',
+            anotherRemote:'¿Estarías disponible para otra sesión remota y revisamos esto directamente?',
+            shareNewErrors:'¿Me podrías compartir capturas o los logs de BRM? Una sesión remota también nos ayudaría.',
+            willReviewDetails:'Revisaré los detalles y te doy seguimiento.',
+            thankMessage:'',
+            thankConfirming:'Gracias por confirmar. ',
+            regYourQuestion:'Respecto a tu pregunta — [tu respuesta aquí].',
+            investigating:'Estoy revisando el tema de '+ctx.mainIssue+' y ',
+            willReviewShared:'revisaré lo que compartiste y ',
+            getBackShortly:'te doy seguimiento a la brevedad.',
+            asDiscussed:'Como comentamos, ',
+            followUp:'Quería dar seguimiento a '+subj+'. ',
+            noResponseClose:'Como no hemos recibido respuesta, procederé a cerrar este caso en los próximos días. Si aún necesitas asistencia, responde y lo reabrimos.',
+            chanceReview:'¿Tuviste oportunidad de revisar mi último mensaje? Te preguntaba sobre ',
+            letMeKnowContinue:'Avísame para poder continuar ayudándote.',
+            chanceInstall:'¿Tuviste oportunidad de instalar/revisar los archivos enviados? Avísame si tuviste algún problema.',
+            stillAvailRemote:'¿Sigues disponible para la sesión remota? Compárteme tu fecha y hora preferida.',
+            furtherAssistance:'Avísame si necesitas asistencia adicional o si el problema se resolvió.',
+            postSessionSummary:'Después de nuestra sesión remota respecto a '+subj+', este es el resumen:',
+            actionsTaken:'Acciones realizadas:',
+            describeActions:'[Describir lo realizado]',
+            brmChanges:'[Cambios de BRM/KBR realizados]',
+            pendingItems:'Pendientes:',
+            ifAny:'[Si los hay]',
+            monitorSystem:'Por favor monitoree '+(ctx.isInspection?'los resultados de inspección':'el sistema')+' y avísenos si todo funciona correctamente.',
+            deliverKBR:'Adjunto encontrará el KBR actualizado para '+subj+'.',
+            addressesIssue:'Esta actualización atiende el tema de '+ctx.mainIssue+' que comentamos.',
+            toInstall:'Para instalar:\n1. Abrir BRM\n2. File > Load KBR\n3. Seleccionar el archivo .kbr adjunto\n4. Verificar la configuración',
+            needRemoteHelp:'Avíseme si necesita asistencia remota durante la instalación.',
+            quoteFor:'Adjunto encontrará la cotización para '+subj+':',
+            quoteDetails:'[Detalles de cotización]',
+            validDays:'Esta cotización tiene vigencia de 30 días. Avíseme si desea proceder.',
+            gladConfirm:'Me da gusto confirmar que '+(ctx.mainIssue?'el tema de '+ctx.mainIssue:'el problema reportado en este ticket')+' ha sido resuelto.',
+            thankRemoteTime:'Gracias por su tiempo durante nuestra sesión remota.',
+            willClose:'Procederé a cerrar este ticket. Si necesita asistencia adicional, no dude en contactarnos.',
+            suggestRemote:'Después de revisar la conversación sobre '+subj+', considero que una sesión remota vía TeamViewer nos ayudaría a resolver esto de forma más eficiente'+(ctx.isError?' y poder ver el error directamente':'')+'.',
+            availableSession:'¿Estaría disponible para una sesión? Por favor comparta sus horarios preferidos.',
+            firstResponse:'Primera Respuesta',
+            schedRemote:'Agendar Sesión Remota',
+            confirmResolution:'Confirmar Resolución',
+            confirmRemote:'Confirmar Sesión Remota',
+            ackInfo:'Información Recibida',
+            provideInstructions:'Dar Instrucciones',
+            ackNewIssue:'Problema Nuevo/Recurrente',
+            replyCustomer:'Responder al Cliente',
+            suggestRemoteNm:'Sugerir Sesión Remota',
+            followUpNm:'Seguimiento',
+            finalFollowUp:'Seguimiento Final',
+            postSession:'Resumen Post-Sesión',
+            deliverKBRNm:'Entregar KBR',
+            sendQuote:'Enviar Cotización',
+            closeTicket:'Resuelto — Cerrar Ticket'
+        },
+        en:{
+            thankReach:'Thank you for reaching out regarding '+subj+'.',
+            reviewed:'I have reviewed your message',
+            toInvestigate:'To investigate further, could you please provide:',
+            screenshots:'Screenshots of the error',
+            logFiles:'Relevant log files',
+            swVersion:'Current software/BRM version',
+            stepsRepro:'Steps to reproduce the issue',
+            helpIdRoot:'This will help me identify the root cause faster.',
+            scheduleSession:'I would be happy to schedule a session to address this. Could you please share your availability for the coming days?',
+            prepareQuote:'I will prepare the quotation and send it to you shortly.',
+            willLookInto:'I have reviewed your message and will look into this right away. I will get back to you with an update soon.',
+            remoteWouldHelp:'After reviewing your report about '+subj+', I believe a remote session via TeamViewer would be the most efficient approach to '+(ctx.isError?'diagnose and resolve this error':'address this issue')+'.',
+            pleaseTV:'Could you please:\n1. Share your availability for the coming days\n2. Have TeamViewer installed and ready\n3. Share the ID and password when we connect',
+            gladResolved:'Great to hear that'+(ctx.mainIssue?' the issue with '+ctx.mainIssue:' things are working')+'. Thank you for confirming.',
+            afterRemote:'Following our remote session and the changes we made, please ',
+            letUsKnow:'let us know if you experience any further issues. I will proceed to close this ticket.',
+            thankConfirm:'Thank you for confirming. Let us schedule the remote session',
+            shareDateTime:' — please share your preferred date and time',
+            beforeConnect:'Before we connect, please:\n1. Have TeamViewer installed and running\n2. Share the TeamViewer ID and password\n3. '+(ctx.isError?'Keep the error/issue visible on screen if possible':'Have BRM open and ready'),
+            thankSharing:'Thank you for sharing ',
+            theScreenshots:'the screenshots',
+            theLogFiles:'the log files',
+            theInfo:'the information',
+            willReview:'I will review ',
+            them:'them',
+            this_:'this',
+            getBackFindings:' and get back to you with my findings.',
+            ifNoticeMore:'If you notice any additional details about when or how the issue occurs, please let me know as well.',
+            regQuestion:'Regarding your question'+(ctx.mainIssue?' about '+ctx.mainIssue:'')+', here are the steps:',
+            step:'Step',
+            backupFirst:'Please make sure to backup your current KBR/configuration before making changes.',
+            questionsProcess:'Let me know if you have any questions during the process.',
+            persisting:' that the issue is persisting',
+            additionalIssue:' about this additional issue',
+            understandFrustrating:'I understand this is frustrating — let me investigate further.',
+            importantRightAway:'This is important and I will look into it right away.',
+            anotherRemote:'Since we already had a remote session, would you be available for another one to investigate this further?',
+            shareNewErrors:'Could you please share any new error messages or screenshots? A remote session may also help us resolve this faster.',
+            willReviewDetails:'I will review the details and get back to you with an update.',
+            thankMessage:'Thank you for your message. ',
+            thankConfirming:'Thank you for confirming. ',
+            regYourQuestion:'Regarding your question — [your answer here].',
+            investigating:'I am investigating the '+ctx.mainIssue+' issue and ',
+            willReviewShared:'review what you shared and ',
+            getBackShortly:'will get back to you shortly.',
+            asDiscussed:'As discussed, ',
+            followUp:'I wanted to follow up on '+subj+'. ',
+            noResponseClose:'As we have not heard back in a while, I will proceed to close this case in the next few days. If you still need assistance, please reply and I will reopen it.',
+            chanceReview:'Have you had a chance to review my last message? I was asking about ',
+            letMeKnowContinue:'Please let me know so I can continue helping you.',
+            chanceInstall:'Have you had a chance to install/review the files I sent? Please let me know if you ran into any issues or need help with the process.',
+            stillAvailRemote:'Are you still available for the remote session? Please share your preferred date and time, and I will make sure to accommodate.',
+            furtherAssistance:'Please let me know if you need any further assistance or if the issue has been resolved.',
+            postSessionSummary:'Following our remote session regarding '+subj+', here is a summary:',
+            actionsTaken:'Actions taken:',
+            describeActions:'[Describe what was done]',
+            brmChanges:'[BRM/KBR changes made]',
+            pendingItems:'Pending items:',
+            ifAny:'[If any]',
+            monitorSystem:'Please monitor '+(ctx.isInspection?'the inspection results':'the system')+' and let us know if everything is working as expected.',
+            deliverKBR:'Please find attached the updated KBR for '+subj+'.',
+            addressesIssue:'This update addresses the '+ctx.mainIssue+' issue we discussed.',
+            toInstall:'To install:\n1. Open BRM\n2. File > Load KBR\n3. Select the attached .kbr file\n4. Verify the configuration',
+            needRemoteHelp:'Let me know if you need remote assistance during the installation.',
+            quoteFor:'Please find below the quotation for '+subj+':',
+            quoteDetails:'[Quotation details]',
+            validDays:'This quotation is valid for 30 days. Please let me know if you would like to proceed.',
+            gladConfirm:'I am glad to confirm that '+(ctx.mainIssue?'the '+ctx.mainIssue+' issue':'the issue reported in this ticket')+' has been resolved.',
+            thankRemoteTime:'Thank you for your time during our remote session.',
+            willClose:'I will proceed to close this ticket. If you need further assistance, do not hesitate to reach out.',
+            suggestRemote:'After reviewing the conversation about '+subj+', I think a remote session via TeamViewer would help us resolve this more efficiently'+(ctx.isError?' and let me see the error firsthand':'')+'.',
+            availableSession:'Would you be available for a session? Please share your preferred times.',
+            firstResponse:'First Response',
+            schedRemote:'Schedule Remote Session',
+            confirmResolution:'Confirm Resolution',
+            confirmRemote:'Confirm Remote Session',
+            ackInfo:'Acknowledge Info',
+            provideInstructions:'Provide Instructions',
+            ackNewIssue:'New/Recurring Issue',
+            replyCustomer:'Reply to Customer',
+            suggestRemoteNm:'Suggest Remote Session',
+            followUpNm:'Follow-up',
+            finalFollowUp:'Final Follow-up',
+            postSession:'Post-Session Summary',
+            deliverKBRNm:'Deliver KBR',
+            sendQuote:'Send Quotation',
+            closeTicket:'Resolved — Close Ticket'
+        }
+    };
+    const l=L[lang];
+    const gRec=lang==='es'?'Recomendado':'Recommended Now';
+    const gAlt=lang==='es'?'Alternativa':'Alternative';
+    const gAfter=lang==='es'?'Post-Sesión':'After Session';
+    const gDeliv=lang==='es'?'Entregable':'Deliverable';
+    const gClose=lang==='es'?'Cerrar':'Close';
+
+    const R=[];
+
+    if(a.sit==='new'){
+        const issue=firstCust?firstCust.t:'';
+        const needsInfo=!ctx.hasScreenshot&&!ctx.hasLogs&&(ctx.isError||ctx.isTechnical);
+        const missingParts=[];
+        if(!ctx.hasScreenshot&&ctx.isError)missingParts.push(l.screenshots);
+        if(!ctx.hasLogs&&ctx.isError)missingParts.push(l.logFiles);
+        if(!ctx.hasVersion)missingParts.push(l.swVersion);
+        if(!ctx.hasSteps&&ctx.isError)missingParts.push(l.stepsRepro);
+
+        R.push({g:gRec,nm:l.firstResponse,
+            why:(lang==='es'?'Cliente reportó: "':'Customer reported: "')+trunc(issue,120)+'"',
+            body:hi+',\n\n'+
+            (needsInfo?l.toInvestigate:
+            ctx.isScheduling?l.scheduleSession:
+            ctx.isQuote?l.prepareQuote:
+            l.willLookInto)+
+            '\n\n'+bye});
+
+        if(ctx.isTechnical)
+            R.push({g:gRec,nm:l.schedRemote,
+                why:(lang==='es'?'Tema técnico sobre ':'Technical issue about ')+ctx.mainIssue+(lang==='es'?' — remoto es más rápido':' — remote is faster'),
+                body:hi+',\n\n'+l.remoteWouldHelp+'\n\n'+l.pleaseTV+'\n\n'+bye});
+    }
+
+    if(a.sit==='respond'){
+        const custText=lastCust?lastCust.t:'';
+        const custLow=custText.toLowerCase();
+        const hasQ=custText.match(/\?/);
+        const saysYes=custLow.match(/\b(yes|ok|sure|agree|confirm|available|can do|sounds good|go ahead|sí|si|claro|de acuerdo|confirmo|disponible|adelante|listo|perfecto)\b/i);
+        const saysNo=custLow.match(/\b(no|not|can't|cannot|unable|don't|doesn't|won't|unavailable|no puedo|no es posible|imposible)\b/i);
+        const asksWhen=custLow.match(/\b(when|what time|schedule|availability|date|cuándo|cuando|horario|fecha|disponibilidad|qué hora)\b/i);
+        const asksHow=custLow.match(/\b(how to|how do|how can|steps|instructions|procedure|cómo|como|pasos|instrucciones|procedimiento)\b/i);
+        const reportsNew=custLow.match(/\b(now|another|also|still|again|new issue|different|happening again|ahora|otro|también|sigue|de nuevo|nuevo problema|diferente|otra vez|persiste)\b/i);
+        const sendsInfo=custLow.match(/\b(attached|screenshot|log|here is|please find|sharing|sending|adjunto|captura|le comparto|aquí está|le envío|enviando)\b/i);
+        const mentionsTV=custLow.match(/teamviewer|remote|tv\s*id|anydesk|remota|sesión remota/i);
+        const mentionsDone=custLow.match(/\b(done|completed|installed|working|fixed|resolved|looks good|thank|listo|completado|instalado|funcionando|resuelto|se arregló|gracias|todo bien)\b/i);
+
+        if(mentionsDone){
+            R.push({g:gRec,nm:l.confirmResolution,
+                why:(lang==='es'?'Cliente indica que se resolvió: "':'Customer indicates resolved: "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+l.gladResolved+'\n\n'+(ctx.hadRemoteSession?l.afterRemote:'')+l.letUsKnow+'\n\n'+bye});
+        }
+
+        if(saysYes&&(ctx.wasScheduling||mentionsTV)){
+            R.push({g:gRec,nm:l.confirmRemote,
+                why:(lang==='es'?'Cliente aceptó sesión remota: "':'Customer agreed to remote: "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+l.thankConfirm+(asksWhen?'':l.shareDateTime)+'.\n\n'+l.beforeConnect+'\n\n'+bye});
+        }
+
+        if(sendsInfo){
+            const what=custLow.match(/screenshot|captura/)?l.theScreenshots:(custLow.match(/log/)?l.theLogFiles:l.theInfo);
+            const ref=custLow.match(/screenshot|captura|log|file|archivo/)?l.them:l.this_;
+            R.push({g:gRec,nm:l.ackInfo,
+                why:(lang==='es'?'Cliente envió información: "':'Customer sent info: "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+l.thankSharing+what+'. '+l.willReview+ref+l.getBackFindings+'\n\n'+(ctx.isError?l.ifNoticeMore+'\n\n':'')+bye});
+        }
+
+        if(hasQ&&asksHow){
+            R.push({g:gRec,nm:l.provideInstructions,
+                why:(lang==='es'?'Cliente pregunta cómo: "':'Customer asking how to: "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+l.regQuestion+'\n\n1. ['+l.step+' 1]\n2. ['+l.step+' 2]\n3. ['+l.step+' 3]\n\n'+(ctx.isBRM?l.backupFirst+'\n\n':'')+l.questionsProcess+'\n\n'+bye});
+        }
+
+        if(reportsNew&&!mentionsDone){
+            const isPersist=custLow.match(/again|still|persist|sigue|otra vez|persiste/i);
+            R.push({g:gRec,nm:l.ackNewIssue,
+                why:(lang==='es'?'Cliente reporta problema persiste/nuevo: "':'Customer reports issue persists/new: "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+(lang==='es'?'Gracias por informarnos':'Thank you for letting me know')+(isPersist?l.persisting:l.additionalIssue)+'. '+(isPersist?l.understandFrustrating:l.importantRightAway)+'\n\n'+
+                (ctx.hadRemoteSession?l.anotherRemote:ctx.isTechnical?l.shareNewErrors:l.willReviewDetails)+'\n\n'+bye});
+        }
+
+        if(!R.length){
+            R.push({g:gRec,nm:l.replyCustomer,
+                why:(lang==='es'?'Último mensaje: "':'Last message: "')+trunc(custText,120)+'"',
+                body:hi+',\n\n'+(saysYes?l.thankConfirming:l.thankMessage)+(hasQ?l.regYourQuestion+'\n\n':
+                (ctx.isError?l.investigating:'')+l.getBackShortly+'\n\n')+
+                (ctx.pendingAction?l.asDiscussed+ctx.pendingAction+'.\n\n':'')+bye});
+        }
+
+        if(!mentionsTV&&ctx.isTechnical&&!ctx.hadRemoteSession)
+            R.push({g:gAlt,nm:l.suggestRemoteNm,
+                why:lang==='es'?'Sin sesión remota aún para este tema técnico':'No remote session yet for this technical issue',
+                body:hi+',\n\n'+l.suggestRemote+'\n\n'+l.availableSession+'\n\n'+bye});
+    }
+
+    if(a.sit==='waiting'||a.sit==='followup'){
+        const agentSaid=lastAgent?lastAgent.t:'';
+        const agentAsked=agentSaid.match(/\?/);
+        const agentSentFile=agentSaid.toLowerCase().match(/attach|kbr|file|sent|please find|adjunto|envío|le comparto/i);
+        const agentScheduled=agentSaid.toLowerCase().match(/schedul|teamviewer|remote|session|availab|sesión|remota|disponib/i);
+
+        R.push({g:gRec,nm:a.stale>=14?l.finalFollowUp:l.followUpNm,
+            why:a.stale+'d '+(lang==='es'?'desde que ':'since you ')+
+                (agentAsked?(lang==='es'?'preguntaste: "':'asked: "')+trunc(agentSaid,80)+'"':
+                agentSentFile?(lang==='es'?'enviaste archivos/KBR':'sent files/KBR'):
+                agentScheduled?(lang==='es'?'propusiste sesión remota':'proposed a remote session'):
+                (lang==='es'?'respondiste':'last replied'))+(lang==='es'?' — sin respuesta aún':' — no response yet'),
+            body:hi+',\n\n'+l.followUp+
+            (a.stale>=14?l.noResponseClose:
+            agentAsked?l.chanceReview+trunc(agentSaid.split('?')[0],80)+'.\n\n'+l.letMeKnowContinue:
+            agentSentFile?l.chanceInstall:
+            agentScheduled?l.stillAvailRemote:
+            l.furtherAssistance)+
+            '\n\n'+bye});
+    }
+
+    if(ctx.hadRemoteSession)
+        R.push({g:gAfter,nm:l.postSession,why:lang==='es'?'Se realizó/discutió sesión remota en este ticket':'Remote session discussed/held in this ticket',
+            body:hi+',\n\n'+l.postSessionSummary+'\n\n'+l.actionsTaken+'\n- '+l.describeActions+'\n'+(ctx.isBRM?'- '+l.brmChanges+'\n':'')+'\n'+l.pendingItems+'\n- '+l.ifAny+'\n\n'+l.monitorSystem+'\n\n'+bye});
+
+    if(ctx.isBRM)
+        R.push({g:gDeliv,nm:l.deliverKBRNm,why:lang==='es'?'BRM/KBR discutido en la conversación':'BRM/KBR discussed in conversation',
+            body:hi+',\n\n'+l.deliverKBR+'\n\n'+(ctx.mainIssue?l.addressesIssue+'\n\n':'')+l.toInstall+'\n\n'+l.needRemoteHelp+'\n\n'+bye});
+
+    if(ctx.isQuote)
+        R.push({g:gDeliv,nm:l.sendQuote,why:lang==='es'?'Cotización discutida en la conversación':'Quotation discussed in conversation',
+            body:hi+',\n\n'+l.quoteFor+'\n\n'+l.quoteDetails+'\n\n'+l.validDays+'\n\n'+bye});
+
+    R.push({g:gClose,nm:l.closeTicket,why:(lang==='es'?'Usar cuando ':'Use when ')+subj+(lang==='es'?' esté completamente resuelto':' is fully resolved'),
+        body:hi+',\n\n'+l.gladConfirm+(ctx.hadRemoteSession?'\n\n'+l.thankRemoteTime:'')+'\n\n'+l.willClose+'\n\n'+bye});
+
+    window._R=R;
+    const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
+    let h='<div class="lang-badge">'+(lang==='es'?'Español detectado':'English detected')+'</div>';
+    for(const[g,items]of Object.entries(G)){
+        h+='<div class="rg"><h3>'+esc(g)+'</h3>';
+        items.forEach(r=>{
+            h+='<div class="rc"><div class="rc-title">'+esc(r.nm)+'</div><div class="rc-why">'+esc(r.why)+'</div>'+
+                '<div class="rc-body shut" onclick="this.classList.toggle(\'shut\');this.classList.toggle(\'open\')">'+esc(r.body)+'</div>'+
+                '<button class="rc-copy" onclick="cp('+r.i+',this)">Copy to clipboard</button></div>';
+        });h+='</div>';
+    }
+    return h;
+}
+
+function extractContext(allLow,m,lastCust,lastAgent){
+    const isError=!!allLow.match(/error|crash|exception|fail|broken|not.work|issue|problem|falla|no funciona|no sirve|se cayó|problema/i);
+    const isTechnical=!!allLow.match(/error|crash|config|install|brm|kbr|socket|database|inspect|calibrat|export|barcode|defect|spi|aoi|instalación|configuración|calibración|máquina/i);
+    const isBRM=!!allLow.match(/brm|kbr|business.rule|script|customer.?property/i);
+    const isInspection=!!allLow.match(/inspect|defect|barcode|pcb|spi|aoi|result|inspección|defecto|resultado/i);
+    const isQuote=!!allLow.match(/quote|quotat|price|cost|purchase|po\b|cotizac|precio|costo|compra/i);
+    const isScheduling=!!allLow.match(/schedul|meeting|call|appointment|availab|agendar|reunión|cita|disponibilidad|horario|junta/i);
+    const hadRemoteSession=!!allLow.match(/teamviewer|remote.session|anydesk|tv.id|connected.remote|during.*(session|remote)|sesión remota|nos conectamos|conecté remotamente/i);
+    const hasScreenshot=!!allLow.match(/screenshot|screen.?shot|image|picture|attached.*png|attached.*jpg|captura|imagen|adjunt.*png|adjunt.*jpg/i);
+    const hasLogs=!!allLow.match(/log.file|logs|attached.*log|error.log|archivo.*log|logs adjunt/i);
+    const hasVersion=!!allLow.match(/version|v\d+\.\d+|brm.\d|versión/i);
+    const hasSteps=!!allLow.match(/step|reproduce|when.i|happens.when|to.reproduce|paso|reproducir|cuando.hago|ocurre.cuando/i);
+
+    let mainIssue='';
+    const issuePatterns=[
+        [/error.{0,30}([\w\s]{5,40})/i,'error'],
+        [/issue.{0,10}with.{0,5}([\w\s]{5,40})/i,'issue with'],
+        [/problem.{0,10}with.{0,5}([\w\s]{5,40})/i,'problem with'],
+        [/([\w\s]{3,20})\s*(not working|is broken|crashed|fails)/i,'failure'],
+        [/([\w\s]{3,20})\s*error/i,'error'],
+        [/problema.{0,10}con.{0,5}([\w\sáéíóúñ]{5,40})/i,'problema con'],
+        [/falla.{0,10}en.{0,5}([\w\sáéíóúñ]{5,40})/i,'falla en'],
+        [/([\w\sáéíóúñ]{3,20})\s*(no funciona|no sirve|se cayó|falla)/i,'falla']
+    ];
+    for(const[rx]of issuePatterns){
+        const match=allLow.match(rx);
+        if(match){mainIssue=match[1].trim().replace(/\s+/g,' ').substring(0,40);break}
+    }
+    if(!mainIssue&&isBRM)mainIssue='BRM configuration';
+    if(!mainIssue&&isInspection)mainIssue='inspection results';
+
+    let wasScheduling=false;
+    if(lastAgent){
+        const at=lastAgent.t.toLowerCase();
+        wasScheduling=!!at.match(/schedul|teamviewer|remote|availab|session|agendar|sesión|remota|disponib/i);
+    }
+
+    let pendingAction='';
+    if(lastAgent){
+        const at=lastAgent.t.toLowerCase();
+        if(at.match(/i will|we will|going to|plan to|voy a|vamos a|estaré|revisaré|le enviaré|procederé/)){
+            const pm=lastAgent.t.match(/[Ii] will ([^.!?\n]{10,60})/)||lastAgent.t.match(/[Ww]e will ([^.!?\n]{10,60})/)||
+                lastAgent.t.match(/[Vv]oy a ([^.!?\n]{10,60})/)||lastAgent.t.match(/[Rr]evisaré ([^.!?\n]{10,60})/)||
+                lastAgent.t.match(/[Ll]e enviaré ([^.!?\n]{10,60})/);
+            if(pm)pendingAction=pm[1].trim();
+        }
+    }
+
+    return{isError,isTechnical,isBRM,isInspection,isQuote,isScheduling,hadRemoteSession,
+        hasScreenshot,hasLogs,hasVersion,hasSteps,mainIssue,wasScheduling,pendingAction};
+}
+
+function cp(i,b){navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
+
+/* =============== ANALYSIS ENGINE =============== */
+function msgs(t,c){
+    const r=[];
+    if(t.description_text)r.push({f:'Customer',t:t.description_text,d:t.created_at});
+    c.forEach(x=>{r.push({f:x.private?'Note':(x.incoming?'Customer':'Agent'),t:x.body_text||strip(x.body||''),d:x.created_at})});
+    return r;
+}
+
+function ana(t,m){
+    const age=Math.floor((Date.now()-new Date(t.created_at))/864e5);
+    const stale=Math.floor((Date.now()-new Date(t.updated_at))/864e5);
+    const pub=m.filter(x=>x.f!=='Note'),last=pub[pub.length-1];
+    const nc=m.filter(x=>x.f==='Customer').length,na=m.filter(x=>x.f==='Agent').length;
+    const txt=m.map(x=>x.t.toLowerCase()).join(' ');
+
+    let sit,lbl,ico;
+    if(nc>0&&na===0){sit='new';lbl='New ticket — needs your first response';ico='⚡'}
+    else if(last&&last.f==='Customer'){sit='respond';lbl='Customer replied — your turn to respond';ico='✉️'}
+    else{sit='waiting';lbl='Waiting for customer response';ico='⏳'}
+    if(stale>=7&&sit==='waiting'){sit='followup';lbl='No response in '+stale+' days — time to follow up';ico='🔔'}
+
+    return{sit,lbl,ico,age,stale,nc,na,tot:m.length,topics:findTopics(txt),steps:nextSteps(sit,findTopics(txt),stale)};
+}
+
+function findTopics(t){
+    const M={'Remote Session':/teamviewer|remote.*(session|support|access)|anydesk/i,'Installation':/install|setup|deploy|upgrade|migration/i,'Error':/error|crash|exception|fail|broken|not.work/i,'Config':/config|setting|parameter|property/i,'BRM/KBR':/brm|kbr|business.rule|script/i,'License':/license|activation|serial/i,'Database':/database|db|sql|connection.string/i,'Network':/socket|network|tcp|port|firewall/i,'Export':/export|xslt|csv|xml|output/i,'Inspection':/inspect|defect|result|barcode|pcb|spi|aoi/i,'Quote':/quote|quotat|price|cost|purchase|po\b/i,'Calibration':/calibrat|alignment|offset/i,'Update':/update|patch|version|release|firmware/i};
+    return Object.entries(M).filter(([,r])=>r.test(t)).map(([k])=>k);
+}
+
+function nextSteps(sit,top,stale){
+    const s=[];
+    if(sit==='new'){s.push('Send first response acknowledging the issue');if(top.includes('Error'))s.push('Ask for screenshots, logs, and software version');if(top.includes('Remote Session'))s.push('Schedule TeamViewer session');if(top.includes('Quote'))s.push('Prepare quotation')}
+    else if(sit==='respond'){s.push("Read customer's latest reply and respond");if(top.some(x=>['Remote Session','Error','Inspection'].includes(x)))s.push('Consider scheduling a remote session')}
+    else if(sit==='waiting'){s.push('No action needed yet');if(stale>=3)s.push('Send a follow-up in a few days')}
+    else if(sit==='followup'){s.push('Send follow-up message ('+stale+'d without response)');if(stale>=14)s.push('Consider closing if no reply after follow-up')}
+    return s;
+}
+
+/* =============== SEARCH / FILTERS / PAGER =============== */
+async function doSearch(){
+    const q=document.getElementById('inp-search').value.trim();
+    if(!q){load();return}if(!D.key)return st('Connect first');
+    document.getElementById('list').innerHTML='<div class="loading-msg">Searching</div>';
+    try{
+        let qr='"'+q;if(D.aid)qr+=' AND agent_id:'+D.aid;qr+='"';
+        const d=await get('search/tickets?query='+encodeURIComponent(qr));
+        D.tks=d.results||[];D.pg=1;D.pgs=Math.ceil((d.total||D.tks.length)/30)||1;
+        rl();up();document.getElementById('cnt').textContent=(d.total||D.tks.length);
+        document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
+    }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
+}
+function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(D.allOpen.length>0){applyFilter()}else{load()}}
+function refresh(){D.allOpen=[];D.lr={};load()}
+function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
+function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
+
+/* =============== UTILS =============== */
+function st(m,ok){const e=document.getElementById('conn-status');e.textContent=m;e.className='conn-status'+(ok?' on':'')}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function strip(h){const d=document.createElement('div');d.innerHTML=h;return d.textContent||''}
+function trunc(s,n){return s&&s.length>n?s.substring(0,n)+'…':s||''}
+function ago(d){const s=Math.floor((Date.now()-d)/1000);if(s<60)return'now';if(s<3600)return Math.floor(s/60)+'m';if(s<86400)return Math.floor(s/3600)+'h';return Math.floor(s/86400)+'d'}
+function safe(h){const d=document.createElement('div');d.innerHTML=h;d.querySelectorAll('script,style,iframe,object,embed,form,input').forEach(e=>e.remove());d.querySelectorAll('*').forEach(e=>{for(const a of[...e.attributes])if(a.name.startsWith('on'))e.removeAttribute(a.name)});return d.innerHTML}
+
+/* =============== HEARTBEAT / SHUTDOWN =============== */
+setInterval(()=>{fetch('/heartbeat').catch(()=>{})},15000);
+</script>
+</body>
+</html>
