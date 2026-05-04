@@ -748,19 +748,11 @@ function cleanEmailBody(text){
         .trim();
 }
 
-function extractBody(text){
-    let t=text;
-    t=t.replace(/^(Hola|Hi|Hello|Dear|Buenos?\s*d[ií]as?|Buen d[ií]a|Estimado\/?)[\s,\w]*[,.:]\s*/i,'');
-    t=t.replace(/(Saludos?\s*(cordiales)?|Best regards|Kind regards|Regards|Quedo al pendiente|Quedamos al pendiente|Quedo atento|Atentamente|Cordialmente)[,.\s]*$/i,'');
-    return t.trim();
-}
-
 function detectLang(m,subject){
-    const custMsgs=m.filter(x=>x.f==='Customer').map(x=>extractBody(cleanEmailBody(x.t)));
-    const bodies=custMsgs.join(' ').toLowerCase();
-    const all=bodies.length>20?bodies:((subject||'')+' '+bodies).toLowerCase();
-    const esWords=(all.match(/\b(gracias|por favor|adjunto|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|solicitud|actualización|instalación|calibración|verificar|configuración|revisamos|pendiente|sesión|remota|disponibilidad|horario|versión|compartir|funciona|sirve|errores|pregunta|requiere|soporte|también|correo|información|sistema|estamos|programa|proceso|datos|cambios|nuevo|nueva)\b/gi)||[]).length;
-    const enWords=(all.match(/\b(thank you|thanks|please|attached|issue|machine|review|kindly|appreciate|follow up|looking forward|availability|schedule|screenshot|resolve|investigate|version|working|error|update|install|check|would|could|should|also|about|have|need|want|with|from|this|that|were|been|will|configuration|export|file|send|share)\b/gi)||[]).length;
+    const custMsgs=m.filter(x=>x.f==='Customer').map(x=>cleanEmailBody(x.t));
+    const all=((subject||'')+' '+custMsgs.join(' ')).toLowerCase();
+    const esWords=(all.match(/\b(hola|gracias|buenos|estimado|buen día|por favor|saludos|adjunto|revisamos|revisaré|quedo atento|quedamos|pendiente|sesión|remota|disponibilidad|horario|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|cordial|atencion|solicitud|actualización|instalación|calibración|verificar|configuración)\b/gi)||[]).length;
+    const enWords=(all.match(/\b(hello|thank you|thanks|please|regards|hi|dear|attached|issue|machine|review|kindly|appreciate|let me know|follow up|looking forward|availability|schedule|screenshot|resolve|investigate)\b/gi)||[]).length;
     if(esWords===0&&enWords===0){
         const esChars=(all.match(/[áéíóúüñ¿¡]/g)||[]).length;
         if(esChars>=2)return 'es';
