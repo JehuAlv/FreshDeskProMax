@@ -668,7 +668,40 @@ const KB=[
         en:'I will check which is the latest version available and perform an upgrade. As soon as the new software is ready we will share it here.'},
     {id:'devRequest',kw:/develop|feature.*request|new.*feature|custom|modificación|desarrollo|nueva.*funcionalidad|personalizar|agregar.*función/i,
         es:'Confirmo de recibido. Revisaré los requerimientos y te comparto un estimado de tiempo para el desarrollo.',
-        en:'Confirmed received. I will review the requirements and share an estimated timeline for the development.'}
+        en:'Confirmed received. I will review the requirements and share an estimated timeline for the development.'},
+    {id:'closeTicket',kw:/cerrar.*ticket|close.*ticket|proceed.*close|ya.*qued[oó]|everything.*good|todo.*bien|no.*more.*issue|sin.*novedad/i,
+        es:'De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos nuevamente a nuestro correo oficial de soporte kya_support@kohyoung.com.',
+        en:'We will proceed to close this ticket now. If you ever require support in the future, feel free to reach out by sending a new email to our official support mail at kya_support@kohyoung.com.'},
+    {id:'followUp',kw:/follow.*up|seguimiento|checking.*in|status.*update|any.*update|alguna.*novedad|cómo.*va|how.*going/i,
+        es:'Estoy dándole seguimiento a este ticket, ¿aún requieren soporte de nuestra parte? Quedo atento a sus comentarios.',
+        en:'I am following up on this ticket. Do you still need support from our side? Please let us know.'},
+    {id:'postRemoteSession',kw:/during.*(session|remote|conexión)|durante.*(sesión|conexión|remota)|we.*connected|nos.*conectamos|after.*session|después.*sesión/i,
+        es:'Durante la sesión remota se identificó [problema] y se realizaron los ajustes necesarios. ¿Hay algo más en lo que podamos ayudarte?',
+        en:'During the remote session we identified [issue] and made the necessary adjustments. Is there anything else we can help you with?'},
+    {id:'issueReport',kw:/issue.*report|reporte.*issue|compartir.*reporte|share.*report|heavy.*file|archivo.*pesado|large.*file/i,
+        es:'Usa el siguiente link para hacernos llegar el issue report:\nhttps://fromsmash.com\nUna vez que el archivo haya sido cargado, compártenos el enlace de descarga.',
+        en:'Please use the following link to send us the issue report:\nhttps://fromsmash.com\nOnce the file has been uploaded, share the download link with us.'},
+    {id:'verifyConfig',kw:/verificar.*config|verify.*config|check.*setting|revisar.*config|validar.*config|validate.*config|double.*check/i,
+        es:'¿Podrías validar que la siguiente configuración está correctamente seteada? Compártenos una captura de la configuración actual.',
+        en:'Could you please verify that the following configuration is properly set? Please share a screenshot of the current configuration.'},
+    {id:'connectionFailed',kw:/no.*pude.*conectar|could.*not.*connect|connection.*fail|unable.*connect|no.*fue.*posible.*conexión|cannot.*reach/i,
+        es:'No me fue posible realizar la conexión. ¿Podrías validar que la PC tiene conexión a internet y que TeamViewer está corriendo?',
+        en:'I was unable to connect. Could you please verify that the PC has internet access and that TeamViewer is running?'},
+    {id:'shareKBR',kw:/share.*kbr|compartir.*kbr|send.*kbr|enviar.*kbr|apply.*kbr|aplicar.*kbr|please.*apply|favor.*aplicar/i,
+        es:'Por favor aplica el archivo KBR que se encuentra en el SharePoint. Avísame si necesitas asistencia durante la instalación.',
+        en:'Please apply the KBR file from the SharePoint. Let me know if you need assistance during the installation.'},
+    {id:'availableSchedule',kw:/available|disponible|can.*connect|podemos.*conectar|schedule.*session|agendar.*sesión|when.*can|cuándo.*pueden/i,
+        es:'Estaré disponible para conectarnos. Por favor comparte las credenciales de TeamViewer cuando estén listos.',
+        en:'I will be available to connect. Please share the TeamViewer credentials when you are ready.'},
+    {id:'cfxHermes',kw:/cfx|hermes|ipc.*hermes|cfx.*endpoint|hermes.*plugin|cfx.*error|cfx.*connect/i,
+        es:'¿Podrías verificar que la URI en el plugin está correctamente configurada? También verifica que el firewall esté desactivado en esa máquina.',
+        en:'Could you please double check if the URI in the plugin is properly set? Also, please make sure the firewall is turned off on that machine.'},
+    {id:'timeoutError',kw:/timeout|time.*out|timed.*out|tiempo.*espera|demora.*respuesta|slow.*response|lento/i,
+        es:'Se identificó que el timeout configurado no es suficiente. Incrementaremos los tiempos para dar margen al procesamiento de datos.',
+        en:'We identified that the configured timeout is not sufficient. We will increase the timeout values to allow enough time for data processing.'},
+    {id:'logRetention',kw:/log.*delet|auto.*log|borrar.*log|log.*retention|retención.*log|disk.*space|espacio.*disco|clean.*log|limpiar.*log/i,
+        es:'Por favor verifica el valor en BRM > Log > Data Retention Period. BRM se encarga de borrar sus propios logs según esta configuración.',
+        en:'Please verify the value in BRM > Log > Data Retention Period. BRM is in charge of deleting its own logs based on this setting.'}
 ];
 
 function matchKB(text,alreadyUsed){
@@ -1550,82 +1583,124 @@ function aiPrompt(rc,extraCtx){
             :(esL?'Preguntar si el problema se resolvió':'Ask if the issue is resolved');
     }
 
+    const ctxSection=ctxFlags.length?'\nSituation flags: '+ctxFlags.join(', '):'';
+
     const sys=esL
-?`Eres un agente de soporte del equipo KYA MES en Koh Young Technology.
-Escribe SOLO el cuerpo del email. Nada más. Sin explicaciones. Sin markdown. Sin "Aquí va el borrador".
+?`# ROL
+Eres un agente de soporte técnico del equipo KYA MES en Koh Young Technology. Tu trabajo es responder tickets de soporte sobre el software BRM (Business Rules Management) para máquinas de inspección AOI y SPI.
 
-Formato:
-${rc.hi},
+# FORMATO DE SALIDA
+Escribe ÚNICAMENTE el cuerpo del email. Nada más.
+- Empieza con: ${rc.hi},
+- Cuerpo: 2-4 oraciones máximo. Directo y amigable.
+- Termina con: ${rc.bye}
+- DETENTE inmediatamente después de "${rc.bye}". No escribas NADA después.
 
-[2-4 oraciones. Directo. Amigable. Sin relleno.]
+# REGLAS ESTRICTAS
+- Idioma: ESPAÑOL, tuteo (informal, "tú")
+- NO repitas información que el cliente ya proporcionó
+- NO inventes soluciones técnicas que no estén en la sección de SOLUCIONES DISPONIBLES
+- Si no hay solución clara, ofrece revisar o agendar sesión remota
+- PROHIBIDO usar: "Estimado/a", "Le informo", "Me permito", "Quedo al pendiente", "Quedamos atentos", "Buen día", "Espero que te encuentres bien"
 
-${rc.bye}
+# SOLUCIONES DISPONIBLES
+Usa estas frases EXACTAS cuando aplique:
+- Pedir logs: "¿Nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?"
+- Sesión remota: "¿Me puedes compartir las credenciales de TeamViewer?"
+- Entregar archivo: "Adjunto encontrarás [X]. Por favor sigue las instrucciones del manual adjunto."
+- Revisar algo: "Lo revisaré y te doy seguimiento."
+- Pedir versión: "Revisaré cuál es la última versión disponible y te la compartiré por este medio."
+- Problema resuelto: "Me da gusto saber que se resolvió. Procederé a cerrar este ticket."
+- Socket/conexión: verificar firewall, servicio remoto corriendo, compartir configuración del socket
+- Base de datos: verificar accesibilidad del servidor, credenciales correctas, connection string
+- Barcode: verificar checkbox "Use MES" en AOI GUI, formato de barcode en BRM
+- Resultado incorrecto: pedir XML de inspección y captura del resultado
+- Instalación KBR: File > Load KBR, seleccionar archivo, verificar configuración
+- Licencia: enviar licencia con manual de activación
+- Desarrollo: confirmar recibido, revisar requerimientos, dar estimado de tiempo
+- Cerrar ticket: "De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos nuevamente a nuestro correo oficial de soporte kya_support@kohyoung.com."
+- Seguimiento: "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte de nuestra parte?"
+- Post sesión remota: "Durante la sesión remota se identificó [problema] y se realizaron los ajustes necesarios. ¿Hay algo más en lo que podamos ayudarte?"
+- Issue report pesado: "Usa el siguiente link para hacernos llegar el issue report: https://fromsmash.com"
+- Verificar configuración: "¿Podrías validar que la siguiente configuración está correctamente seteada?"
+- Conexión fallida: "No me fue posible realizar la conexión. ¿Podrías validar que la PC tiene conexión a internet?"
+- Disponibilidad: "Estaré disponible para conectarnos. Por favor comparte las credenciales de TeamViewer cuando estén listos."
+- CFX/Hermes: verificar URI del plugin, verificar firewall desactivado en la máquina
+- Timeout: "Se identificó que el timeout no es suficiente. Incrementaremos los tiempos para dar margen al procesamiento."
+- Retención de logs: "Verifica el valor en BRM > Log > Data Retention Period. BRM se encarga de borrar sus propios logs."
+- Confirmar recibido: "Recibido, muchas gracias."
+- Preguntar si hay más: "¿Hay algo más en lo que podamos ayudarte?"`
 
-Reglas:
-- Todo en ESPAÑOL
-- Usa "tú" (informal)
-- No repitas lo que el cliente ya dijo
-- PROHIBIDO: "Estimado/a", "Le informo", "Me permito", "Quedo al pendiente", "Quedamos atentos", "Buen día"
-- PARA inmediatamente después de "${rc.bye}". No escribas nada después.
+:`# ROLE
+You are a technical support agent for the KYA MES team at Koh Young Technology. You respond to support tickets about BRM (Business Rules Management) software for AOI and SPI inspection machines.
 
-Nuestro equipo da soporte a software BRM para máquinas de inspección AOI/SPI.
-Acciones comunes: pedir logs de BRM, sesiones remotas por TeamViewer, entregar archivos KBR, instalar software, configurar exports, resolver errores de socket/BD.
+# OUTPUT FORMAT
+Write ONLY the email body. Nothing else.
+- Start with: ${rc.hi},
+- Body: 2-4 sentences max. Direct and friendly.
+- End with: ${rc.bye}
+- STOP immediately after "${rc.bye}". Write NOTHING after it.
 
-Frases que usamos:
-- Para pedir logs: "¿Nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?"
-- Para sesión remota: "¿Me puedes compartir las credenciales de TeamViewer?"
-- Para entregar archivo: "Adjunto encontrarás [X]. Por favor sigue las instrucciones del manual adjunto."
-- Para revisar algo: "Lo revisaré y te doy seguimiento."
-- Para pedir versión: "Revisaré cuál es la última versión disponible y te la compartiré por este medio."
-- Si se resolvió: "Me da gusto saber que se resolvió. Procederé a cerrar este ticket."`
+# STRICT RULES
+- Language: ENGLISH only
+- Do NOT repeat information the customer already provided
+- Do NOT invent technical solutions not listed in AVAILABLE SOLUTIONS
+- If no clear solution, offer to review or schedule a remote session
+- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I hope this message finds you well"
 
-:`You are a support agent for the KYA MES team at Koh Young Technology.
-Write ONLY the email body. Nothing else. No explanations. No markdown. No "Here's a draft".
-
-Format:
-${rc.hi},
-
-[2-4 sentences. Direct. Friendly. No filler.]
-
-${rc.bye}
-
-Rules:
-- All in ENGLISH
-- Do not repeat what the customer already said
-- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out"
-- STOP immediately after "${rc.bye}". Write nothing after it.
-
-Our team supports BRM software for AOI/SPI inspection machines.
-Common actions: request BRM logs, remote sessions via TeamViewer, deliver KBR files, install software, configure exports, fix socket/DB errors.
-
-Phrases we use:
-- To request logs: "Could you please share the BRM logs following the instructions in the attached manual?"
-- For remote session: "Could you share the TeamViewer credentials so we can take a look?"
-- To deliver a file: "Please find attached [X]. Follow the instructions in the attached manual."
-- To review something: "I will review it and follow up."
-- For version request: "We will check which is the latest version available and share it with you."
-- If resolved: "Glad to hear it's resolved. I will proceed to close this ticket."`;
+# AVAILABLE SOLUTIONS
+Use these EXACT phrases when applicable:
+- Request logs: "Could you please share the BRM logs following the instructions in the attached manual?"
+- Remote session: "Could you share the TeamViewer credentials so we can take a look?"
+- Deliver file: "Please find attached [X]. Follow the instructions in the attached manual."
+- Review something: "I will review it and follow up."
+- Version request: "I will check which is the latest version available and share it with you."
+- Issue resolved: "Glad to hear it's resolved. I will proceed to close this ticket."
+- Socket/connection: verify firewall, remote service running, share socket configuration
+- Database: verify server accessibility, correct credentials, connection string
+- Barcode: verify "Use MES" checkbox in AOI GUI, barcode format in BRM
+- Incorrect result: request inspection XML and screenshot of the result
+- KBR installation: File > Load KBR, select file, verify configuration
+- License: send license with activation manual
+- Development: confirm received, review requirements, give time estimate
+- Close ticket: "We will proceed to close this ticket now. If you ever require support in the future, feel free to reach out by sending a new email to our official support mail at kya_support@kohyoung.com."
+- Follow up: "I am following up on this ticket. Do you still need support from our side?"
+- Post remote session: "During the remote session we identified [issue] and made the necessary adjustments. Is there anything else we can help you with?"
+- Issue report (large file): "Please use the following link to send us the issue report: https://fromsmash.com"
+- Verify config: "Could you please verify that the following configuration is properly set?"
+- Connection failed: "I was unable to connect. Could you please verify that the PC has internet access and that TeamViewer is running?"
+- Availability: "I will be available to connect. Please share the TeamViewer credentials when you are ready."
+- CFX/Hermes: verify URI in plugin is properly set, make sure firewall is turned off on that machine
+- Timeout: "We identified that the configured timeout is not sufficient. We will increase the timeout values."
+- Log retention: "Please verify the value in BRM > Log > Data Retention Period. BRM is in charge of deleting its own logs."
+- Confirm received: "Received, thank you."
+- Ask if more help needed: "Is there anything else we can help you with?"`;
 
     let usrParts=[];
+    usrParts.push('# TICKET INFO');
     usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
     usrParts.push('Customer name: '+rc.firstName);
     if(rc.ctx.mainIssue)usrParts.push('Main issue: '+rc.ctx.mainIssue);
+    if(ctxSection)usrParts.push(ctxSection);
     usrParts.push('');
     if(extraCtx){
-        usrParts.push('ACTION TO TAKE: '+extraCtx);
+        usrParts.push('# INSTRUCTION (HIGHEST PRIORITY)');
+        usrParts.push(extraCtx);
         usrParts.push('(Auto-suggested action for reference: '+action+')');
     }else{
-        usrParts.push('ACTION TO TAKE: '+action);
+        usrParts.push('# ACTION TO TAKE');
+        usrParts.push(action);
     }
-    if(triedList!=='none')usrParts.push('Do NOT suggest these (already tried): '+triedList);
+    if(triedList!=='none')usrParts.push('\nDo NOT suggest these (already tried): '+triedList);
     usrParts.push('');
-    if(kbSection!=='(none matched)')usrParts.push('KB info:\n'+kbSection+'\n');
-    usrParts.push('Email thread:');
+    if(kbSection!=='(none matched)')usrParts.push('# MATCHING KB SOLUTIONS\n'+kbSection+'\n');
+    if(sugSection)usrParts.push('# SUGGESTED REPLIES (use as reference)\n'+sugSection+'\n');
+    usrParts.push('# EMAIL THREAD (oldest to newest)');
     usrParts.push(thread);
     usrParts.push('');
     usrParts.push(esL
-        ?'Escribe SOLO el email. Empieza con "'+rc.hi+'," y termina con "'+rc.bye+'".'
-        :'Write ONLY the email. Start with "'+rc.hi+'," and end with "'+rc.bye+'".');
+        ?'Escribe SOLO el email. Empieza con "'+rc.hi+'," y termina con "'+rc.bye+'". No escribas nada más.'
+        :'Write ONLY the email. Start with "'+rc.hi+'," and end with "'+rc.bye+'". Write nothing else.');
 
     const usr=usrParts.join('\n');
     return{sys,usr};
@@ -1651,13 +1726,13 @@ async function tryOllama(sys,usr){
     const resp=await fetch('http://'+ollamaHost+':11434/api/chat',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'gemma3:4b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,options:{temperature:0.7,num_predict:400}})
+        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,options:{temperature:0.4,num_predict:500,top_p:0.9,repeat_penalty:1.1}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
     const data=await resp.json();
     let reply=data.message?data.message.content:'';
     reply=cleanAIReply(reply);
-    return{reply,provider:'Ollama (Gemma 3 4B)'};
+    return{reply,provider:'Ollama (Qwen 2.5 7B)'};
 }
 
 async function tryClaude(sys,usr,apiKey){
