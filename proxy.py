@@ -61,8 +61,56 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         reset_timer()
         if self.path.startswith('/fd/'):
             self._proxy('POST')
+        elif self.path == '/claude':
+            self._claude()
         else:
             self.send_error(404)
+
+    def _claude(self):
+        length = int(self.headers.get('Content-Length', 0))
+        if length == 0:
+            self.send_error(400, 'Empty body')
+            return
+        raw = self.rfile.read(length)
+        data = json.loads(raw)
+        api_key = data.get('apiKey', '')
+        if not api_key:
+            self.send_error(400, 'Missing apiKey')
+            return
+
+        payload = json.dumps({
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 1024,
+            'messages': data.get('messages', []),
+            'system': data.get('system', '')
+        }).encode()
+
+        req = urllib.request.Request('https://api.anthropic.com/v1/messages', data=payload, method='POST')
+        req.add_header('x-api-key', api_key)
+        req.add_header('anthropic-version', '2023-06-01')
+        req.add_header('content-type', 'application/json')
+
+        ctx = ssl.create_default_context()
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
+                body = resp.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(body)
+        except urllib.error.HTTPError as e:
+            body = e.read()
+            self.send_response(e.code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            self.send_response(502)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode())
 
     def do_OPTIONS(self):
         self.send_response(200)

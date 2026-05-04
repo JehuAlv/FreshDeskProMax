@@ -225,6 +225,13 @@ nav .conn-status.on{color:var(--green)}
 .rc .rc-copy.did{background:var(--green)}
 .lang-badge{display:inline-block;padding:4px 12px;border-radius:980px;font:600 10px/1 var(--f);letter-spacing:0.3px;color:var(--blue);background:var(--blue-bg);margin-bottom:12px;text-transform:uppercase}
 .ctx-box{padding:8px 12px;border-radius:8px;background:var(--orange-bg);color:#b36b00;font:500 11px/1.4 var(--f);margin-bottom:12px}
+.ai-btn{display:flex;align-items:center;gap:8px;margin:16px 0;padding:12px 20px;border:2px dashed var(--blue);border-radius:12px;background:var(--blue-bg);color:var(--blue);font:600 13px/1 var(--f);cursor:pointer;transition:all .15s;width:100%}
+.ai-btn:hover{background:var(--blue);color:#fff;border-style:solid}
+.ai-btn:disabled{opacity:.6;cursor:wait;border-style:dotted}
+.ai-btn svg{width:16px;height:16px;flex-shrink:0}
+.ai-result{margin-top:12px;padding:16px;border-radius:12px;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 20%,transparent)}
+.ai-result .rc-body{white-space:pre-wrap;font:13px/1.6 var(--f);color:var(--black);margin:8px 0}
+.ai-result .rc-copy{margin-top:8px}
 
 .empty-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--g400);gap:8px;font:14px var(--f)}
 .loading-msg{text-align:center;padding:60px;color:var(--g400);font:13px var(--f)}
@@ -440,7 +447,7 @@ async function load(){
     document.getElementById('list').innerHTML='<div class="loading-msg">Loading</div>';
     try{
         if(D.aid){
-            if(D.fl==='new'){await loadNewTickets();applyFilter()}
+            if(D.fl==='new'){if(D.newTks.length===0)await loadNewTickets();applyFilter()}
             else if(D.allOpen.length===0){await loadAll()}
             else{applyFilter()}
         }else{
@@ -476,8 +483,15 @@ async function sel(id){
     document.getElementById('tab-bar').innerHTML='';
     document.getElementById('content').innerHTML='<div class="loading-msg">Loading</div>';
     try{
-        const[t,c]=await Promise.all([get('tickets/'+id+'?include=requester'),get('tickets/'+id+'/conversations')]);
-        D.cur=t;D.cvs=c;rl();renderRight();
+        const t=await get('tickets/'+id+'?include=requester');
+        let allConvs=[],pg=1;
+        while(true){
+            const page=await get('tickets/'+id+'/conversations?per_page=100&page='+pg);
+            allConvs=allConvs.concat(page);
+            if(page.length<100)break;
+            pg++;
+        }
+        D.cur=t;D.cvs=allConvs;rl();renderRight();
     }catch(e){document.getElementById('content').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 
@@ -555,14 +569,18 @@ function summaryHTML(t,c){
 /* =============== THREAD =============== */
 function threadHTML(t,c){
     let h='';
+    const total=c.length+(t.description?1:0);
+    if(total>10)h+='<div style="text-align:center;padding:8px"><button onclick="jumpToLatest()" style="padding:6px 16px;border:1px solid var(--g200);border-radius:8px;background:var(--white);font:600 12px var(--f);color:var(--blue);cursor:pointer">Jump to latest ('+total+' messages)</button></div>';
     if(t.description)h+='<div class="bubble customer"><div class="bh"><span class="nm">'+esc(t.requester?t.requester.name:'Customer')+' (Original)</span><span class="dt">'+new Date(t.created_at).toLocaleString()+'</span></div><div class="bb">'+safe(t.description)+'</div></div>';
-    c.forEach(x=>{
+    c.forEach((x,i)=>{
         const tp=x.private?'note':(x.incoming?'customer':'agent');
         const lb=x.private?'Private Note':(x.incoming?'Customer':'Agent');
-        h+='<div class="bubble '+tp+'"><div class="bh"><span class="nm">'+esc(x.from_email||lb)+' ('+lb+')</span><span class="dt">'+new Date(x.created_at).toLocaleString()+'</span></div><div class="bb">'+safe(x.body||'')+'</div></div>';
+        const last=i===c.length-1?' id="last-msg"':'';
+        h+='<div class="bubble '+tp+'"'+last+'><div class="bh"><span class="nm">'+esc(x.from_email||lb)+' ('+lb+')</span><span class="dt">'+new Date(x.created_at).toLocaleString()+'</span></div><div class="bb">'+safe(x.body||'')+'</div></div>';
     });
     return h||'<div class="empty-msg">No conversations</div>';
 }
+function jumpToLatest(){const el=document.getElementById('last-msg');if(el)el.scrollIntoView({behavior:'smooth',block:'center'})}
 
 /* =============== SOLUTION KNOWLEDGE BASE =============== */
 const KB=[
@@ -657,10 +675,46 @@ function matchCanned(issueLow,allTextLow,ctx,lang){
 }
 
 /* =============== SMART REPLIES =============== */
-function detectLang(m){
-    const all=m.map(x=>x.t).join(' ');
+function cannedBody(cr,firstName,tid,hi,bye,lang){
+    let body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(tid||''));
+    const hasAttach=/\[attachment\]|\[image\]/i.test(body);
+    body=body.replace(/\[attachment\]/gi,'').replace(/\[image\]/gi,'').trim();
+    if(hasAttach){
+        const note=lang==='es'
+            ?'⚠️ Esta canned response ("'+cr.title+'") contiene adjuntos.\nUsar "Insert Canned Response" → "'+cr.title+'" en Freshdesk para incluir los archivos adjuntos.'
+            :'⚠️ This canned response ("'+cr.title+'") contains attachments.\nUse "Insert Canned Response" → "'+cr.title+'" in Freshdesk to include the attached files.';
+        if(!body||body.length<10){
+            const intro=lang==='es'?'Adjunto encontrarás la información solicitada. Por favor sigue las instrucciones del manual adjunto.':'Please find the requested information attached. Follow the instructions provided in the attached manual.';
+            body=hi+',\n\n'+intro+'\n\n'+bye+'\n\n---\n'+note;
+        }else{
+            body=body+'\n\n---\n'+note;
+        }
+    }
+    return body;
+}
+
+function cleanEmailBody(text){
+    if(!text)return '';
+    return text
+        .replace(/--+\s*\n[\s\S]*$/,'')
+        .replace(/_{3,}[\s\S]*$/,'')
+        .replace(/^(De|From|Sent|Enviado|Date|Fecha|Para|To|Cc|Subject|Asunto):.*$/gm,'')
+        .replace(/(Best regards|Kind regards|Regards|Saludos|Saludos cordiales|Atentamente|Cordialmente)[\s\S]*$/im,'')
+        .replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g,'')
+        .replace(/(?:tel|phone|fax|cell|móvil|ext)[\s.:]*[\d\s\-+().]+/gi,'')
+        .replace(/\s{2,}/g,' ')
+        .trim();
+}
+
+function detectLang(m,subject){
+    const custMsgs=m.filter(x=>x.f==='Customer').map(x=>cleanEmailBody(x.t));
+    const all=((subject||'')+' '+custMsgs.join(' ')).toLowerCase();
     const esWords=(all.match(/\b(hola|gracias|buenos|estimado|buen día|por favor|saludos|adjunto|revisamos|revisaré|quedo atento|quedamos|pendiente|sesión|remota|disponibilidad|horario|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|cordial|atencion|solicitud|actualización|instalación|calibración|verificar|configuración)\b/gi)||[]).length;
     const enWords=(all.match(/\b(hello|thank you|thanks|please|regards|hi|dear|attached|issue|machine|review|kindly|appreciate|let me know|follow up|looking forward|availability|schedule|screenshot|resolve|investigate)\b/gi)||[]).length;
+    if(esWords===0&&enWords===0){
+        const esChars=(all.match(/[áéíóúüñ¿¡]/g)||[]).length;
+        if(esChars>=2)return 'es';
+    }
     return esWords>enWords?'es':'en';
 }
 
@@ -712,6 +766,121 @@ function analyzeAgentStyle(m){
     return{greeting,signoff,usesName,formal,phrases};
 }
 
+function detectIntent(text){
+    const t=text.toLowerCase();
+    if(/(?:compartir|enviar|mandar|proporcionar|facilitar|share|send|provide|deliver)\s*(?:la |el |los |las |the |a |an )?(?:versión|version|software|kbr|archivo|file|licen|update|actualiz)/i.test(t))
+        return 'request_delivery';
+    if(/(?:necesit|requie|ocupo|need|require|want|looking for)\s/i.test(t)&&/(?:versión|version|software|kbr|archivo|file|licen|update|actualiz|nueva?o?|new|latest)/i.test(t))
+        return 'request_delivery';
+    if(/(?:actualizar|upgrade|update|instalar nueva|install new|migrar|migrate)/i.test(t))
+        return 'request_update';
+    if(/(?:cotiza|quot|precio|price|cost|purchase|compra|adquirir|buy)/i.test(t))
+        return 'request_quote';
+    if(/(?:agendar|schedul|programar|coordinar|disponib|availab|sesión|session|reunión|meeting|call)/i.test(t))
+        return 'request_schedule';
+    if(/(?:error|crash|exception|fail|broken|not.work|falla|no funciona|no sirve|se cayó|problema|issue|problem|bug)/i.test(t))
+        return 'report_error';
+    if(/(?:línea|line|producción|production).*(down|stop|parad|detenid|caíd|halt|urgent|crítico|critical)/i.test(t))
+        return 'report_urgent';
+    if(/(?:cómo|how|dónde|where|qué es|what is|cuál|which|puedo|can i|se puede|is it possible)/i.test(t))
+        return 'ask_question';
+    if(/(?:confirmo|confirm|listo|ready|done|ya (?:quedó|está|instalé|cargué)|installed|completed)/i.test(t))
+        return 'confirm_done';
+    if(/(?:gracia|thank|resolved|resuelto|funciona|works|solucion)/i.test(t))
+        return 'confirm_resolved';
+    return 'general';
+}
+
+function buildIntentReply(intent,ctx,issueLow,kbHits,hi,bye,lang,l,firstName){
+    const topic=ctx.mainIssue||'';
+    const topicLabel=topic||(lang==='es'?'su solicitud':'your request');
+
+    const replies={
+        request_delivery:{
+            es:{nm:'Envío de '+topicLabel,
+                why:'Cliente solicita que le envíen: "'+topicLabel+'"',
+                body:hi+',\n\n'+'Revisaré cuál es la última versión disponible de '+topicLabel+' y te la compartiré por este medio en cuanto la tenga lista.'+'\n\n'+bye},
+            en:{nm:'Deliver '+topicLabel,
+                why:'Customer requests delivery of: "'+topicLabel+'"',
+                body:hi+',\n\n'+'I will check the latest version available for '+topicLabel+' and share it with you through this channel as soon as it is ready.'+'\n\n'+bye}
+        },
+        request_update:{
+            es:{nm:'Actualización de '+topicLabel,
+                why:'Cliente solicita actualización: "'+topicLabel+'"',
+                body:hi+',\n\n'+'Revisaré cuál es la última versión disponible y realizaremos la actualización. En cuanto el nuevo software esté listo lo compartiremos por aquí.\n\n¿Me podrías confirmar la versión actual que están corriendo?'+'\n\n'+bye},
+            en:{nm:'Update '+topicLabel,
+                why:'Customer requests update for: "'+topicLabel+'"',
+                body:hi+',\n\n'+'I will check which is the latest version available and perform the upgrade. As soon as the new software is ready we will share it here.\n\nCould you confirm the current version you are running?'+'\n\n'+bye}
+        },
+        request_quote:{
+            es:{nm:'Cotización',
+                why:'Cliente solicita cotización',
+                body:hi+',\n\n'+l.prepareQuote+'\n\n'+bye},
+            en:{nm:'Quotation',
+                why:'Customer requests quotation',
+                body:hi+',\n\n'+l.prepareQuote+'\n\n'+bye}
+        },
+        request_schedule:{
+            es:{nm:'Agendar sesión',
+                why:'Cliente quiere agendar sesión/reunión',
+                body:hi+',\n\n'+'Claro, agendemos la sesión. ¿Me podrías compartir tu disponibilidad de horario y las credenciales de TeamViewer?'+'\n\n'+bye},
+            en:{nm:'Schedule session',
+                why:'Customer wants to schedule session/meeting',
+                body:hi+',\n\n'+'Sure, let us schedule the session. Could you share your availability and the TeamViewer credentials?'+'\n\n'+bye}
+        },
+        report_urgent:{
+            es:{nm:'Urgente — sesión remota',
+                why:'Línea detenida / problema crítico reportado',
+                body:hi+',\n\n'+KB.find(k=>k.id==='remoteUrgent').es+'\n\n'+bye},
+            en:{nm:'Urgent — remote session',
+                why:'Line down / critical issue reported',
+                body:hi+',\n\n'+KB.find(k=>k.id==='remoteUrgent').en+'\n\n'+bye}
+        },
+        report_error:{
+            es:{nm:'Diagnóstico de error',
+                why:'Cliente reporta error/problema con '+topicLabel,
+                body:hi+',\n\n'+
+                    (kbHits.length?kbHits[0].es:
+                    'Para comprender mejor el problema'+(topic?' con '+topic:'')+', ¿nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?\n\nSi es posible, también incluye capturas de pantalla del error.')+
+                    '\n\n'+bye},
+            en:{nm:'Error diagnosis',
+                why:'Customer reports error/issue with '+topicLabel,
+                body:hi+',\n\n'+
+                    (kbHits.length?kbHits[0].en:
+                    'To better understand the issue'+(topic?' with '+topic:'')+', could you please share the BRM logs following the instructions in the attached manual?\n\nIf possible, please also include screenshots of the error.')+
+                    '\n\n'+bye}
+        },
+        ask_question:{
+            es:{nm:'Responder consulta',
+                why:'Cliente hace pregunta sobre '+topicLabel,
+                body:hi+',\n\n'+(kbHits.length?kbHits[0].es:'Respecto a tu consulta'+(topic?' sobre '+topic:'')+', [tu respuesta aquí].')+'\n\n'+bye},
+            en:{nm:'Answer question',
+                why:'Customer asks about '+topicLabel,
+                body:hi+',\n\n'+(kbHits.length?kbHits[0].en:'Regarding your question'+(topic?' about '+topic:'')+', [your answer here].')+'\n\n'+bye}
+        },
+        confirm_done:{
+            es:{nm:'Confirmar instalación',
+                why:'Cliente confirma que completó acción',
+                body:hi+',\n\n'+'Gracias por confirmar. ¿Todo quedó funcionando correctamente? Si notas algún problema, avísanos.'+'\n\n'+bye},
+            en:{nm:'Confirm completion',
+                why:'Customer confirms completed action',
+                body:hi+',\n\n'+'Thank you for confirming. Is everything working correctly? If you notice any issues, let us know.'+'\n\n'+bye}
+        },
+        confirm_resolved:{
+            es:{nm:'Cerrar ticket',
+                why:'Cliente confirma que se resolvió',
+                body:hi+',\n\n'+'Me da gusto saber que todo está funcionando. Procederé a cerrar este ticket. Si necesitas asistencia adicional, no dudes en contactarnos.'+'\n\n'+bye},
+            en:{nm:'Close ticket',
+                why:'Customer confirms resolution',
+                body:hi+',\n\n'+'Great to hear everything is working. I will proceed to close this ticket. If you need further assistance, do not hesitate to reach out.'+'\n\n'+bye}
+        }
+    };
+
+    const r=replies[intent];
+    if(!r)return null;
+    return r[lang]||r.en;
+}
+
 function replyHTML(t,c){
     const m=msgs(t,c),a=ana(t,m);
     const nm=t.requester?t.requester.name:'Customer';
@@ -722,12 +891,14 @@ function replyHTML(t,c){
     const lastCust=allCust.length?allCust[allCust.length-1]:null;
     const lastAgent=allAgent.length?allAgent[allAgent.length-1]:null;
     const firstCust=allCust.length?allCust[0]:null;
+    const cleanCust=allCust.map(x=>cleanEmailBody(x.t)).join(' ');
     const allText=m.map(x=>x.t).join(' ');
-    const allTextLow=allText.toLowerCase();
+    const allTextLow=(allText+' '+(t.subject||'')).toLowerCase();
+    const cleanTextLow=((t.subject||'')+' '+cleanCust).toLowerCase();
 
-    const lang=detectLang(m);
+    const lang=detectLang(m,t.subject);
     const sty=analyzeAgentStyle(m);
-    const ctx=extractContext(allTextLow,m,lastCust,lastAgent);
+    const ctx=extractContext(cleanTextLow,m,lastCust,lastAgent);
 
     const hi=sty.greeting?sty.greeting.replace(/[\w]+$/,firstName):
         (lang==='es'?'Hola '+firstName:'Hello '+firstName);
@@ -923,30 +1094,32 @@ function replyHTML(t,c){
 
     const R=[];
 
-    const issueText=(firstCust?firstCust.t:'')+'  '+(t.subject||'');
+    const issueText=(t.subject||'')+'  '+(firstCust?cleanEmailBody(firstCust.t):'');
     const issueLow=issueText.toLowerCase();
-    const cannedMatch=matchCanned(issueLow,allTextLow,ctx,lang);
+    const cannedMatch=matchCanned(issueLow,cleanTextLow,ctx,lang);
     const usedCannedIds=new Set();
 
+    const intent=detectIntent(issueLow);
+
     if(a.sit==='new'){
-        if(cannedMatch.length){
-            cannedMatch.forEach(cr=>{
-                usedCannedIds.add(cr._id);
-                const body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(t.id));
-                R.push({g:gRec,nm:cr.title,
-                    why:(lang==='es'?'Canned response coincide con problema: "':'Canned response matches issue: "')+trunc(issueText,100)+'"',
-                    body:body});
-            });
+        const kbHits=matchKB(issueText,new Set());
+        const intentBody=buildIntentReply(intent,ctx,issueLow,kbHits,hi,bye,lang,l,firstName);
+
+        if(intentBody){
+            R.push({g:gRec,nm:intentBody.nm,
+                why:intentBody.why,
+                body:intentBody.body});
         }
 
-        const kbHits=matchKB(issueText,new Set());
-        if(kbHits.length){
+        if(kbHits.length&&!intentBody){
             kbHits.slice(0,2).forEach(kb=>{
                 R.push({g:gRec,nm:l.firstResponse,
                     why:(lang==='es'?'Detectado: ':'Detected: ')+kb.id+' → "'+ trunc(issueText,100)+'"',
                     body:hi+',\n\n'+kb[lang]+'\n\n'+bye});
             });
-        }else if(!cannedMatch.length){
+        }
+
+        if(!intentBody&&!kbHits.length&&!cannedMatch.length){
             const needsInfo=!ctx.hasScreenshot&&!ctx.hasLogs&&(ctx.isError||ctx.isTechnical);
             R.push({g:gRec,nm:l.firstResponse,
                 why:(lang==='es'?'Cliente reportó: "':'Customer reported: "')+trunc(issueText,120)+'"',
@@ -959,6 +1132,16 @@ function replyHTML(t,c){
                 '\n\n'+bye});
         }
 
+        if(cannedMatch.length){
+            cannedMatch.forEach(cr=>{
+                usedCannedIds.add(cr._id);
+                const body=cannedBody(cr,firstName,t.id,hi,bye,lang);
+                R.push({g:gAlt,nm:cr.title,
+                    why:(lang==='es'?'Canned response relacionada: "':'Related canned response: "')+cr.title+'"',
+                    body:body});
+            });
+        }
+
         if(ctx.isTechnical)
             R.push({g:gAlt,nm:l.schedRemote,
                 why:(lang==='es'?'Tema técnico sobre ':'Technical issue about ')+ctx.mainIssue+(lang==='es'?' — remoto es más rápido':' — remote is faster'),
@@ -969,7 +1152,7 @@ function replyHTML(t,c){
         if(cannedMatch.length){
             cannedMatch.forEach(cr=>{
                 usedCannedIds.add(cr._id);
-                const body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(t.id));
+                const body=cannedBody(cr,firstName,t.id,hi,bye,lang);
                 R.push({g:gRec,nm:cr.title,
                     why:(lang==='es'?'Canned response coincide con problema inicial: "':'Canned response matches initial issue: "')+trunc(issueText,100)+'"',
                     body:body});
@@ -1116,17 +1299,23 @@ function replyHTML(t,c){
             return false;
         });
         relevantCanned.forEach(cr=>{
-            const body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(t.id));
+            const body=cannedBody(cr,firstName,t.id,hi,bye,lang);
             R.push({g:gCanned,nm:cr.title,why:lang==='es'?'Canned response de Freshdesk':'Freshdesk canned response',body:body});
         });
     }
 
     window._R=R;
+    window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText};
     const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
     let h='<div class="lang-badge">'+(lang==='es'?'Español detectado':'English detected')+'</div>';
     if(ctx.triedSolutions.size>0){
         h+='<div class="ctx-box"><b>'+(lang==='es'?'Soluciones ya intentadas':'Already tried')+':</b> '+Array.from(ctx.triedSolutions).join(', ')+'</div>';
     }
+
+    h+='<button class="ai-btn" onclick="generateClaude(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4zm0 2a2 2 0 0 1 2 2v2h-4V6a2 2 0 0 1 2-2z"/><circle cx="12" cy="15" r="2"/></svg>'
+        +(lang==='es'?'Generar respuesta con IA':'Generate reply with AI')+'</button>'
+        +'<div id="ai-out"></div>';
+
     for(const[g,items]of Object.entries(G)){
         h+='<div class="rg"><h3>'+esc(g)+'</h3>';
         items.forEach(r=>{
@@ -1218,6 +1407,102 @@ function extractContext(allLow,m,lastCust,lastAgent){
 }
 
 function cp(i,b){navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
+function cpText(txt,b){navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
+
+function aiPrompt(rc){
+    const thread=rc.m.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
+    const sys=`You are a support agent for KYA MES team (Koh Young). Generate a professional reply for a Freshdesk support ticket.
+
+RULES:
+- Language: ${rc.lang==='es'?'Spanish':'English'}
+- Greeting: "${rc.hi},"
+- Sign-off: "${rc.bye}"
+- Be concise: 2-4 sentences max for the body
+- Be direct and action-oriented, go straight to the point
+- No excessive apologies or fluff
+- No email signatures (they are auto-appended)
+- Context: The team provides support for BRM (Business Rules Management) software for AOI/SPI inspection machines
+- If the customer reports an error, ask for BRM logs or suggest a remote session via TeamViewer
+- If the customer requests a file/version/update, confirm you will check and send it
+- If the customer asks a question, answer directly or ask for clarification
+- ONLY output the reply text, nothing else (no "Subject:", no explanations, no markdown)`;
+
+    const usr=`Ticket #${rc.t.id}: ${rc.t.subject}
+Customer: ${rc.firstName}
+${rc.ctx.mainIssue?'Main issue: '+rc.ctx.mainIssue:''}
+${rc.ctx.isUrgent?'URGENT - line may be down':''}
+
+Thread:
+${thread}
+
+Generate the reply:`;
+    return{sys,usr};
+}
+
+async function tryOllama(sys,usr){
+    const ollamaHost=location.hostname==='localhost'||location.hostname==='127.0.0.1'?'localhost':location.hostname;
+    const resp=await fetch('http://'+ollamaHost+':11434/api/chat',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'gemma3:4b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,options:{temperature:0.7,num_predict:512}})
+    });
+    if(!resp.ok)throw new Error('Ollama '+resp.status);
+    const data=await resp.json();
+    return{reply:data.message?data.message.content:'',provider:'Ollama (Gemma 3 4B)'};
+}
+
+async function tryClaude(sys,usr,apiKey){
+    const resp=await fetch('/claude',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({apiKey:apiKey,messages:[{role:'user',content:usr}],system:sys})
+    });
+    if(!resp.ok){
+        if(resp.status===401){localStorage.removeItem('fd_claude_key');throw new Error('Invalid API key')}
+        const err=await resp.json().catch(()=>({}));
+        throw new Error(err.error&&err.error.message||'API error '+resp.status);
+    }
+    const data=await resp.json();
+    return{reply:data.content&&data.content[0]?data.content[0].text:'',provider:'Claude Haiku'};
+}
+
+async function generateClaude(btn){
+    const rc=window._replyCtx;if(!rc)return;
+    const out=document.getElementById('ai-out');
+    btn.disabled=true;
+    const origText=btn.textContent;
+    btn.textContent=(rc.lang==='es'?'Generando respuesta...':'Generating reply...');
+    out.innerHTML='';
+
+    const{sys,usr}=aiPrompt(rc);
+    let result=null;
+
+    try{
+        result=await tryOllama(sys,usr);
+    }catch(e){
+        const aKey=localStorage.getItem('fd_claude_key')||'';
+        if(aKey){
+            try{result=await tryClaude(sys,usr,aKey)}catch(e2){
+                out.innerHTML='<div class="ctx-box">Ollama not available and Claude API failed: '+esc(e2.message)+'</div>';
+                btn.disabled=false;btn.textContent=origText;return;
+            }
+        }else{
+            out.innerHTML='<div class="ai-result"><div style="font:500 12px/1.4 var(--f);color:var(--g500);margin-bottom:8px">'
+                +(rc.lang==='es'?'Ollama no disponible. Asegúrate de que Ollama esté corriendo (ejecuta "ollama serve"), o ingresa una API key de Anthropic como respaldo:':'Ollama not available. Make sure Ollama is running ("ollama serve"), or enter an Anthropic API key as fallback:')+'</div>'
+                +'<div style="display:flex;gap:8px;margin-top:6px"><input id="inp-claude" type="password" style="flex:1;padding:8px;border:1px solid var(--g200);border-radius:8px;font:13px var(--f)" placeholder="sk-ant-...">'
+                +'<button class="rc-copy" style="white-space:nowrap" onclick="const k=document.getElementById(\'inp-claude\').value.trim();if(k){localStorage.setItem(\'fd_claude_key\',k);generateClaude(document.querySelector(\'.ai-btn\'))}">Save & Generate</button></div></div>';
+            btn.disabled=false;btn.textContent=origText;return;
+        }
+    }
+
+    if(result){
+        window._aiReply=result.reply;
+        out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg><span style="font:600 12px/1 var(--f);color:var(--blue)">'+esc(result.provider)+'</span></div>'
+            +'<div class="rc-body open" style="max-height:none">'+esc(result.reply)+'</div>'
+            +'<button class="rc-copy" onclick="cpText(window._aiReply,this)">Copy to clipboard</button></div>';
+    }
+    btn.disabled=false;btn.textContent=origText;
+}
 
 /* =============== ANALYSIS ENGINE =============== */
 function msgs(t,c){
@@ -1271,7 +1556,7 @@ async function doSearch(){
         document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
-function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){load()}else if(D.allOpen.length>0){applyFilter()}else{load()}}
+function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
 function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache');loadNewTickets();load()}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
