@@ -5,27 +5,8 @@ import json
 import os
 import ssl
 import base64
-import threading
-import sys
-import signal
 
 PORT = 8080
-SHUTDOWN_TIMEOUT = 20
-last_activity = None
-server = None
-
-def reset_timer():
-    global last_activity
-    last_activity = __import__('time').time()
-
-def watchdog():
-    import time
-    while True:
-        time.sleep(10)
-        if last_activity and (time.time() - last_activity) > SHUTDOWN_TIMEOUT:
-            pass
-        if last_activity and (time.time() - last_activity) > 30:
-            os._exit(0)
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -39,26 +20,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
-        reset_timer()
         if self.path == '/heartbeat':
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(b'ok')
-        elif self.path == '/shutdown':
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'bye')
-            threading.Thread(target=lambda: ((__import__('time').sleep(0.5)), os._exit(0))).start()
         elif self.path.startswith('/fd/'):
             self._proxy('GET')
         else:
             super().do_GET()
 
     def do_POST(self):
-        reset_timer()
         if self.path.startswith('/fd/'):
             self._proxy('POST')
         elif self.path == '/claude':
@@ -164,10 +137,5 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({'error': str(e)}).encode())
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-reset_timer()
-
-t = threading.Thread(target=watchdog, daemon=True)
-t.start()
-
 server = http.server.HTTPServer(('0.0.0.0', PORT), ProxyHandler)
 server.serve_forever()

@@ -225,13 +225,23 @@ nav .conn-status.on{color:var(--green)}
 .rc .rc-copy.did{background:var(--green)}
 .lang-badge{display:inline-block;padding:4px 12px;border-radius:980px;font:600 10px/1 var(--f);letter-spacing:0.3px;color:var(--blue);background:var(--blue-bg);margin-bottom:12px;text-transform:uppercase}
 .ctx-box{padding:8px 12px;border-radius:8px;background:var(--orange-bg);color:#b36b00;font:500 11px/1.4 var(--f);margin-bottom:12px}
-.ai-btn{display:flex;align-items:center;gap:8px;margin:16px 0;padding:12px 20px;border:2px dashed var(--blue);border-radius:12px;background:var(--blue-bg);color:var(--blue);font:600 13px/1 var(--f);cursor:pointer;transition:all .15s;width:100%}
+.ai-row{display:flex;gap:8px;margin:16px 0}
+.ai-btn{display:flex;align-items:center;gap:8px;padding:12px 16px;border:2px dashed var(--blue);border-radius:12px;background:var(--blue-bg);color:var(--blue);font:600 13px/1 var(--f);cursor:pointer;transition:all .15s;flex:1}
 .ai-btn:hover{background:var(--blue);color:#fff;border-style:solid}
 .ai-btn:disabled{opacity:.6;cursor:wait;border-style:dotted}
 .ai-btn svg{width:16px;height:16px;flex-shrink:0}
+.ai-btn.claude{border-color:var(--orange);background:var(--orange-bg);color:#b36b00}
+.ai-btn.claude:hover{background:var(--orange);color:#fff;border-style:solid}
+.ai-key-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.ai-key-row input{flex:1;padding:8px 12px;border:1px solid var(--g200);border-radius:8px;font:13px var(--f)}
+.ai-key-row button{height:32px;padding:0 14px;border:none;border-radius:980px;font:500 12px/32px var(--f);cursor:pointer;background:var(--orange);color:#fff}
+.ai-key-row button:hover{opacity:.85}
+.ai-key-row .saved{font:500 11px/1 var(--f);color:var(--green)}
 .ai-result{margin-top:12px;padding:16px;border-radius:12px;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 20%,transparent)}
 .ai-result .rc-body{white-space:pre-wrap;font:13px/1.6 var(--f);color:var(--black);margin:8px 0}
-.ai-result .rc-copy{margin-top:8px}
+.ai-result .rc-copy{margin-top:10px;height:32px;padding:0 18px;border:none;border-radius:980px;font:500 12px/32px var(--f);cursor:pointer;background:var(--blue);color:var(--white);transition:all .15s}
+.ai-result .rc-copy:hover{background:var(--blue2)}
+.ai-result .rc-copy.did{background:var(--green)}
 
 .empty-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--g400);gap:8px;font:14px var(--f)}
 .loading-msg{text-align:center;padding:60px;color:var(--g400);font:13px var(--f)}
@@ -298,8 +308,14 @@ function toggleKey(){const i=document.getElementById('inp-key');i.type=i.type===
 
 (function(){const k=localStorage.getItem('fd_apikey');if(k){document.getElementById('inp-key').value=k;setTimeout(connect,300)}})();
 
-async function api(p){
+async function api(p,retries){
+    retries=retries||0;
     const r=await fetch('/fd/'+p,{headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom}});
+    if(r.status===429&&retries<3){
+        const wait=Math.pow(2,retries)*2000;
+        await new Promise(ok=>setTimeout(ok,wait));
+        return api(p,retries+1);
+    }
     if(!r.ok)throw new Error('API '+r.status);return r;
 }
 async function get(p){return(await api(p)).json()}
@@ -312,19 +328,33 @@ async function connect(){
     try{
         const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';
         localStorage.setItem('fd_apikey',D.key);st(D.anm,1);
-        get('canned_response_folders').then(folders=>{
-            if(!folders||!folders.length){D.canned=[];return}
-            return Promise.all(folders.map(f=>get('canned_response_folders/'+f.id+'/responses').catch(()=>[]))).then(all=>{
-                D.canned=[].concat(...all).filter(c=>c.title&&(c.title.includes('[MES]')||c.title.includes('[BRM]')));
-            });
-        }).catch(()=>{D.canned=[]});
-        loadNewTickets();
-        load();
+        loadCanned();
+        await load();
+        await loadNewTickets();
         if(!D._newPoll)D._newPoll=setInterval(()=>{loadNewTickets()},60000);
     }catch(e){
         if(e.message.includes('404')){try{await get('tickets?per_page=1');localStorage.setItem('fd_apikey',D.key);st('Connected',1);load()}catch(e2){st('Failed')}}
         else st('Failed: '+e.message);
     }
+}
+
+function loadCanned(){
+    const cached=localStorage.getItem('fd_canned');
+    if(cached){try{D.canned=JSON.parse(cached);return}catch(e){}}
+    get('canned_response_folders').then(folders=>{
+        if(!folders||!folders.length){D.canned=[];return}
+        const fetchSeq=async()=>{
+            const all=[];
+            for(const f of folders){
+                try{const r=await get('canned_response_folders/'+f.id+'/responses');all.push(...r)}catch(e){}
+            }
+            return all;
+        };
+        return fetchSeq().then(all=>{
+            D.canned=all.filter(c=>c.title&&(c.title.includes('[MES]')||c.title.includes('[BRM]')));
+            try{localStorage.setItem('fd_canned',JSON.stringify(D.canned))}catch(e){}
+        });
+    }).catch(()=>{D.canned=[]});
 }
 
 async function loadAll(){
@@ -341,9 +371,9 @@ async function loadAll(){
     D.allOpen=all.filter(t=>t.status!==4&&t.status!==5);
     document.getElementById('list').innerHTML='<div class="loading-msg">Loading details 0/'+D.allOpen.length+'</div>';
     D.lr={};
-    const cache=JSON.parse(localStorage.getItem('fd_cache')||'{}');
+    const cache=JSON.parse(localStorage.getItem('fd_cache2')||'{}');
     const batches=[];
-    for(let i=0;i<D.allOpen.length;i+=10)batches.push(D.allOpen.slice(i,i+10));
+    for(let i=0;i<D.allOpen.length;i+=5)batches.push(D.allOpen.slice(i,i+5));
     let done=0;
     for(const batch of batches){
         const results=await Promise.all(batch.map(t=>{
@@ -359,36 +389,38 @@ async function loadAll(){
                 const d=r.d;
                 const rr=d.stats?d.stats.requester_responded_at:null;
                 const ar=d.stats?d.stats.agent_responded_at:null;
-                D.lr[t.id]=!ar||!rr?true:new Date(rr)>new Date(ar);
+                D.lr[t.id]=!ar?true:(!rr?false:new Date(rr)>new Date(ar));
                 t._reqName=d.requester?d.requester.name:'Unknown';
                 t._company=d.company?d.company.name:'';
-                cache[t.id]={u:t.updated_at,lr:D.lr[t.id],rn:t._reqName,co:t._company};
+                cache[t.id]={u:t.updated_at,lr:D.lr[t.id],rn:t._reqName,co:t._company,ar:ar};
             }
             done++;
         }
         document.getElementById('list').innerHTML='<div class="loading-msg">Loading details '+done+'/'+D.allOpen.length+'</div>';
     }
-    try{localStorage.setItem('fd_cache',JSON.stringify(cache))}catch(e){}
+    try{localStorage.setItem('fd_cache2',JSON.stringify(cache))}catch(e){}
     applyFilter();
 }
 
 async function loadNewTickets(){
     try{
-        let allAgents=[],apg=1;
-        while(true){
-            const a=await get('agents?per_page=100&page='+apg);
-            allAgents=allAgents.concat(a);
-            if(a.length<100)break;
-            apg++;
+        if(!D._teamIds){
+            let allAgents=[],apg=1;
+            while(true){
+                const a=await get('agents?per_page=100&page='+apg);
+                allAgents=allAgents.concat(a);
+                if(a.length<100)break;
+                apg++;
+            }
+            D._teamIds=allAgents.filter(a=>{
+                const n=a.contact?a.contact.name:'';
+                return /alexis|ramiro/i.test(n);
+            }).map(a=>a.id);
         }
-        const teamIds=allAgents.filter(a=>{
-            const n=a.contact?a.contact.name:'';
-            return /alexis|ramiro/i.test(n);
-        }).map(a=>a.id);
-        if(!teamIds.length){D.newTks=[];updateNewBadge();return}
+        if(!D._teamIds.length){D.newTks=[];updateNewBadge();return}
 
         let all=[];
-        for(const aid of teamIds){
+        for(const aid of D._teamIds){
             let q='"agent_id:'+aid+' AND status:2"';
             let pg=1;
             while(true){
@@ -402,24 +434,34 @@ async function loadNewTickets(){
         let filtered=all;
 
         const noReply=[];
+        const cache=JSON.parse(localStorage.getItem('fd_cache2')||'{}');
         const batches=[];
-        for(let i=0;i<filtered.length;i+=10)batches.push(filtered.slice(i,i+10));
+        for(let i=0;i<filtered.length;i+=5)batches.push(filtered.slice(i,i+5));
         for(const batch of batches){
-            const results=await Promise.all(batch.map(t=>
-                get('tickets/'+t.id+'?include=stats,requester,company').then(d=>({id:t.id,d})).catch(()=>({id:t.id,d:null}))
-            ));
+            const results=await Promise.all(batch.map(t=>{
+                const c=cache[t.id];
+                if(c&&c.u===t.updated_at&&c.ar!==undefined){
+                    return Promise.resolve({id:t.id,cached:true,replied:!!c.ar,rn:c.rn,co:c.co});
+                }
+                return get('tickets/'+t.id+'?include=stats,requester,company').then(d=>({id:t.id,cached:false,d})).catch(()=>({id:t.id,cached:true,replied:false,rn:'Unknown',co:''}));
+            }));
             for(const r of results){
                 const t=filtered.find(x=>x.id===r.id);
-                if(r.d){
+                if(r.cached&&!r.d){
+                    t._reqName=r.rn;t._company=r.co;
+                    if(!r.replied)noReply.push(t);
+                }else if(r.d){
                     const replied=!!(r.d.stats&&r.d.stats.agent_responded_at);
                     t._reqName=r.d.requester?r.d.requester.name:'Unknown';
                     t._company=r.d.company?r.d.company.name:'';
+                    cache[t.id]={u:t.updated_at,lr:true,rn:t._reqName,co:t._company,ar:r.d.stats?r.d.stats.agent_responded_at:null};
                     if(!replied)noReply.push(t);
                 }else{
                     noReply.push(t);
                 }
             }
         }
+        try{localStorage.setItem('fd_cache2',JSON.stringify(cache))}catch(e){}
         D.newTks=noReply.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
         updateNewBadge();
     }catch(e){D.newTks=[];updateNewBadge()}
@@ -1304,16 +1346,52 @@ function replyHTML(t,c){
         });
     }
 
+    const threadWords=allTextLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3);
+    R.forEach(r=>{
+        const bLow=r.body.toLowerCase();
+        let score=0;
+        for(const w of threadWords){if(bLow.includes(w))score++}
+        if(r.g===gRec)score+=20;
+        else if(r.g===gAlt)score+=5;
+        r._score=score;
+    });
+    R.sort((a,b)=>b._score-a._score);
+    if(R.length>5)R.length=5;
     window._R=R;
-    window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText};
+    window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText,suggestions:R,cannedAll:D.canned||[]};
     const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
     let h='<div class="lang-badge">'+(lang==='es'?'Español detectado':'English detected')+'</div>';
     if(ctx.triedSolutions.size>0){
         h+='<div class="ctx-box"><b>'+(lang==='es'?'Soluciones ya intentadas':'Already tried')+':</b> '+Array.from(ctx.triedSolutions).join(', ')+'</div>';
     }
 
-    h+='<button class="ai-btn" onclick="generateClaude(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4zm0 2a2 2 0 0 1 2 2v2h-4V6a2 2 0 0 1 2-2z"/><circle cx="12" cy="15" r="2"/></svg>'
-        +(lang==='es'?'Generar respuesta con IA':'Generate reply with AI')+'</button>'
+    const lastMsg=m.length?m[m.length-1]:null;
+    if(lastMsg){
+        const isC=lastMsg.f==='Customer';
+        const lbl=isC?firstName:(lastMsg.f==='Note'?(lang==='es'?'Nota interna':'Internal note'):'Agent');
+        const clr=isC?'var(--orange)':'var(--blue)';
+        const bg=isC?'var(--orange-bg)':'var(--blue-bg)';
+        const cleanTxt=cleanEmailBody(lastMsg.t);
+        const preview=cleanTxt.length>500?cleanTxt.substring(0,500)+'…':cleanTxt;
+        h+='<div style="margin-bottom:14px;padding:12px;border-radius:10px;background:'+bg+';border-left:3px solid '+clr+'">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+            +'<span style="font:600 11px/1 var(--f);color:'+clr+';text-transform:uppercase">'+(lang==='es'?'Último mensaje — ':'Last message — ')+esc(lbl)+'</span>'
+            +'<span style="font:11px var(--f);color:var(--g400)">'+timeAgo(lastMsg.d)+'</span></div>'
+            +'<div style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
+    }
+
+    const hasKey=!!localStorage.getItem('fd_claude_key');
+    h+='<div class="ai-key-row">'
+        +'<input id="inp-claude-key" type="password" placeholder="sk-ant-..." value="'+(hasKey?'••••••••••••••••':'')+'" style="'+(hasKey?'color:var(--g400)':'')+'" onfocus="if(this.value.startsWith(\'••\')){this.value=\'\';this.style.color=\'\'}">'
+        +'<button onclick="const k=document.getElementById(\'inp-claude-key\').value.trim();if(k&&!k.startsWith(\'••\')){localStorage.setItem(\'fd_claude_key\',k);document.getElementById(\'inp-claude-key\').value=\'••••••••••••••••\';document.getElementById(\'inp-claude-key\').style.color=\'var(--g400)\';document.getElementById(\'claude-key-status\').textContent=\''+(lang==='es'?'Guardada':'Saved')+'\'}">'+(lang==='es'?'Guardar key':'Save key')+'</button>'
+        +'<span id="claude-key-status" class="saved">'+(hasKey?(lang==='es'?'Guardada':'Saved'):'')+'</span>'
+        +'</div>';
+    h+='<div class="ai-row">'
+        +'<button class="ai-btn claude" onclick="generateAI(\'claude\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+        +'Claude</button>'
+        +'<button class="ai-btn" onclick="generateAI(\'ollama\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+        +(lang==='es'?'IA Local (Ollama)':'Local AI (Ollama)')+'</button>'
+        +'</div>'
         +'<div id="ai-out"></div>';
 
     for(const[g,items]of Object.entries(G)){
@@ -1409,34 +1487,197 @@ function extractContext(allLow,m,lastCust,lastAgent){
 function cp(i,b){navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
 function cpText(txt,b){navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
 
-function aiPrompt(rc){
+function aiPrompt(rc,extraCtx){
     const thread=rc.m.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
-    const sys=`You are a support agent for KYA MES team (Koh Young). Generate a professional reply for a Freshdesk support ticket.
+
+    const kbHits=matchKB(rc.issueText,rc.ctx.triedSolutions||new Set());
+    const kbSection=kbHits.length?kbHits.map(k=>'- '+k.id+': '+k[rc.lang]).join('\n'):'(none matched)';
+
+    const cannedSection=rc.cannedAll.filter(cr=>{
+        const title=cr.title.toLowerCase();
+        return title.includes('[mes]')||title.includes('[brm]');
+    }).map(cr=>('- "'+cr.title+'"')).join('\n');
+
+    const sugSection=rc.suggestions.slice(0,3).map(s=>'- ['+s.nm+']: '+s.body.substring(0,200)).join('\n');
+
+    const triedList=rc.ctx.triedSolutions&&rc.ctx.triedSolutions.size>0?Array.from(rc.ctx.triedSolutions).join(', '):'none';
+
+    const ctxFlags=[];
+    if(rc.ctx.isError)ctxFlags.push('ERROR reported');
+    if(rc.ctx.isUrgent)ctxFlags.push('URGENT/line down');
+    if(rc.ctx.isBRM)ctxFlags.push('BRM/KBR related');
+    if(rc.ctx.isInspection)ctxFlags.push('Inspection/AOI/SPI');
+    if(rc.ctx.isQuote)ctxFlags.push('Quotation request');
+    if(rc.ctx.isScheduling)ctxFlags.push('Scheduling session');
+    if(rc.ctx.hadRemoteSession)ctxFlags.push('Had remote session before');
+    if(rc.ctx.hasLogs)ctxFlags.push('Customer shared logs');
+    if(rc.ctx.hasScreenshot)ctxFlags.push('Customer shared screenshots');
+    if(rc.ctx.agentAskedFor)ctxFlags.push('Agent previously asked for: '+rc.ctx.agentAskedFor);
+    if(rc.ctx.customerProvided)ctxFlags.push('Customer provided: '+rc.ctx.customerProvided);
+    if(rc.ctx.pendingAction)ctxFlags.push('Agent promised: '+rc.ctx.pendingAction);
+
+    const examples=rc.lang==='es'?`
+EJEMPLO 1 (error reportado, necesitamos logs):
+Hola Gustavo,
+
+Para comprender mejor el problema, ¿nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?
+
+Saludos cordiales,
+
+EJEMPLO 2 (urgente, línea parada):
+Hola Carlos,
+
+¿Me puedes compartir las credenciales para la sesión remota por favor? Así podemos revisarlo directamente.
+
+Saludos cordiales,
+
+EJEMPLO 3 (entrega de archivo):
+Hola Luis,
+
+Adjunto encontrarás la nueva versión del KBR. Por favor sigue las instrucciones del manual adjunto para la instalación.
+
+Saludos cordiales,
+
+EJEMPLO 4 (cliente pide versión/actualización):
+Hola Roberto,
+
+Revisaré cuál es la última versión disponible y te la compartiré por este medio.
+
+Saludos cordiales,
+
+EJEMPLO 5 (sesión remota acordada):
+Hola Tim,
+
+Claro, esperamos la sesión remota para conectarnos. ¿Nos podrías compartir las credenciales de TeamViewer?
+
+Saludos cordiales,
+
+EJEMPLO 6 (necesitamos aclaración):
+Hola Miguel,
+
+Solo para estar en el mismo canal, lo que requieren es:
+1. Actualización de BRM a la última versión
+2. Configuración del file export para el nuevo formato
+
+¿Es correcto?
+
+Saludos cordiales,
+
+EJEMPLO 7 (agente sabe la solución):
+Hola David,
+
+El error se debe a que la conexión con la base de datos está caída. ¿Podrías confirmar si el servicio de SQL Server está corriendo en el equipo?
+
+Saludos cordiales,`:`
+EXAMPLE 1 (error reported, need logs):
+Hi Tim,
+
+Could you please share the BRM logs following the instructions in the attached manual? This will help us identify the issue faster.
+
+Best regards,
+
+EXAMPLE 2 (urgent, line down):
+Hi John,
+
+Is there a way I can connect to your machines and verify directly? Please share the TeamViewer credentials so we can take a look right away.
+
+Best regards,
+
+EXAMPLE 3 (file delivery):
+Hi Sarah,
+
+Please find attached the new KBR version. Follow the instructions in the attached manual for installation.
+
+Best regards,
+
+EXAMPLE 4 (customer asks for version/update):
+Hi Mike,
+
+We will check which is the latest version available and share it with you through this channel.
+
+Best regards,
+
+EXAMPLE 5 (remote session agreed):
+Hi Tim,
+
+Sounds good, we'll be ready for the remote session. Could you please share the TeamViewer credentials?
+
+Best regards,
+
+EXAMPLE 6 (need clarification):
+Hi Dave,
+
+Just to make sure we're on the same page, what you need is:
+1. BRM update to latest version
+2. File export configuration for the new format
+
+Is that correct?
+
+Best regards,
+
+EXAMPLE 7 (agent knows the fix):
+Hi James,
+
+The error is caused by the database connection being down. Could you confirm if the SQL Server service is running on the machine?
+
+Best regards,`;
+
+    const sys=`You write email replies for a tech support team. Output ONLY the reply — no preamble, no commentary, no markdown, no "Here's a draft". Just the email exactly as it would be sent.
 
 RULES:
-- Language: ${rc.lang==='es'?'Spanish':'English'}
-- Greeting: "${rc.hi},"
-- Sign-off: "${rc.bye}"
-- Be concise: 2-4 sentences max for the body
-- Be direct and action-oriented, go straight to the point
-- No excessive apologies or fluff
-- No email signatures (they are auto-appended)
-- Context: The team provides support for BRM (Business Rules Management) software for AOI/SPI inspection machines
-- If the customer reports an error, ask for BRM logs or suggest a remote session via TeamViewer
-- If the customer requests a file/version/update, confirm you will check and send it
-- If the customer asks a question, answer directly or ask for clarification
-- ONLY output the reply text, nothing else (no "Subject:", no explanations, no markdown)`;
+- LANGUAGE: ${rc.lang==='es'?'SPANISH. Every single word must be in Spanish. Do NOT write in English.':'ENGLISH. Every single word must be in English. Do NOT write in Spanish.'}
+- Start with: ${rc.hi},
+- End with: ${rc.bye}
+- STOP after "${rc.bye}". Nothing after it. No name, no signature, no brackets.
+- 2-5 sentences body. Direct, friendly, action-oriented.
+${rc.lang==='es'?'- NEVER use: "Estimado/a", "Le informo que", "Me permito", "Quedo al pendiente", "Quedamos atentos"':'- NEVER use: "Dear", "I hope this email finds you well", "Please do not hesitate"'}
+- Do NOT repeat what the customer already said back to them
+- Do NOT repeat solutions already tried: ${triedList}
+- Read the full conversation and continue naturally from where it left off
+
+TEAM CONTEXT:
+- We support BRM (Business Rules Management) software for AOI/SPI inspection machines
+- Common actions: send BRM logs manual, remote sessions via TeamViewer, deliver KBR files, install/update software, configure file exports, fix socket/DB errors
+- When we need info → ask for BRM logs with attached manual
+- When urgent/line down → ask for remote session credentials immediately
+- When delivering files → "Adjunto encontrarás..." (ES) / "Please find attached..." (EN)
+- When customer asks for version → "Revisaré cuál es la última versión disponible..." (ES) / "We will check which is the latest version available..." (EN)
+- When session agreed → confirm time + ask for TeamViewer credentials
+- When we know the fix → give direct answer/steps, no unnecessary back-and-forth
+
+${cannedSection?'Available canned responses:\n'+cannedSection+'\n':''}${kbSection!=='(none matched)'?'KB matches:\n'+kbSection+'\n':''}${sugSection?'Reference suggestions:\n'+sugSection+'\n':''}
+Here are real examples of how our team writes replies. Match this EXACT style:
+${examples}
+
+IMPORTANT: Your output must look EXACTLY like the examples above. Just the greeting, body, and sign-off. Nothing else.`;
 
     const usr=`Ticket #${rc.t.id}: ${rc.t.subject}
 Customer: ${rc.firstName}
-${rc.ctx.mainIssue?'Main issue: '+rc.ctx.mainIssue:''}
-${rc.ctx.isUrgent?'URGENT - line may be down':''}
+Status: ${rc.t.status===2?'Open':rc.t.status===3?'Pending':rc.t.status===4?'Resolved':'Unknown'}
+REPLY LANGUAGE: ${rc.lang==='es'?'SPANISH — write entirely in Spanish':'ENGLISH — write entirely in English'}
+${rc.ctx.mainIssue?'Issue: '+rc.ctx.mainIssue:''}
+${ctxFlags.length?'Flags: '+ctxFlags.join(', '):''}
 
-Thread:
+Conversation:
 ${thread}
-
-Generate the reply:`;
+${extraCtx?'\nAgent instruction: '+extraCtx:''}
+Write the reply in ${rc.lang==='es'?'Spanish':'English'}:`;
     return{sys,usr};
+}
+
+function cleanAIReply(text){
+    let t=text;
+    const rc=window._replyCtx;
+    const hi=rc?rc.hi:'Hi';
+    const bye=rc?rc.bye:'Best regards,';
+    const hiIdx=t.indexOf(hi+',');
+    if(hiIdx>0)t=t.substring(hiIdx);
+    const byeIdx=t.lastIndexOf(bye);
+    if(byeIdx>0)t=t.substring(0,byeIdx+bye.length);
+    t=t.replace(/\*\*/g,'').replace(/^#{1,3}\s+.*$/gm,'');
+    t=t.replace(/\[Your Name.*?\]/gi,'').replace(/\[Team Name.*?\]/gi,'');
+    t=t.trim();
+    return t;
 }
 
 async function tryOllama(sys,usr){
@@ -1444,11 +1685,13 @@ async function tryOllama(sys,usr){
     const resp=await fetch('http://'+ollamaHost+':11434/api/chat',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'gemma3:4b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,options:{temperature:0.7,num_predict:512}})
+        body:JSON.stringify({model:'gemma3:4b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,options:{temperature:0.7,num_predict:400}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
     const data=await resp.json();
-    return{reply:data.message?data.message.content:'',provider:'Ollama (Gemma 3 4B)'};
+    let reply=data.message?data.message.content:'';
+    reply=cleanAIReply(reply);
+    return{reply,provider:'Ollama (Gemma 3 4B)'};
 }
 
 async function tryClaude(sys,usr,apiKey){
@@ -1463,45 +1706,55 @@ async function tryClaude(sys,usr,apiKey){
         throw new Error(err.error&&err.error.message||'API error '+resp.status);
     }
     const data=await resp.json();
-    return{reply:data.content&&data.content[0]?data.content[0].text:'',provider:'Claude Haiku'};
+    let reply=data.content&&data.content[0]?data.content[0].text:'';
+    reply=cleanAIReply(reply);
+    return{reply,provider:'Claude Haiku'};
 }
 
-async function generateClaude(btn){
+async function generateAI(provider,extraCtx){
     const rc=window._replyCtx;if(!rc)return;
     const out=document.getElementById('ai-out');
-    btn.disabled=true;
-    const origText=btn.textContent;
-    btn.textContent=(rc.lang==='es'?'Generando respuesta...':'Generating reply...');
-    out.innerHTML='';
+    const btns=document.querySelectorAll('.ai-btn');
+    btns.forEach(b=>{b.disabled=true});
+    const esL=rc.lang==='es';
+    out.innerHTML='<div class="loading-msg">'+(esL?'Generando respuesta':'Generating reply')+'</div>';
 
-    const{sys,usr}=aiPrompt(rc);
+    if(!extraCtx){const el=document.getElementById('ai-extra');if(el)extraCtx=el.value.trim()}
+    window._lastAIProvider=provider;
+    const{sys,usr}=aiPrompt(rc,extraCtx||'');
     let result=null;
 
-    try{
-        result=await tryOllama(sys,usr);
-    }catch(e){
+    if(provider==='claude'){
         const aKey=localStorage.getItem('fd_claude_key')||'';
-        if(aKey){
-            try{result=await tryClaude(sys,usr,aKey)}catch(e2){
-                out.innerHTML='<div class="ctx-box">Ollama not available and Claude API failed: '+esc(e2.message)+'</div>';
-                btn.disabled=false;btn.textContent=origText;return;
-            }
-        }else{
-            out.innerHTML='<div class="ai-result"><div style="font:500 12px/1.4 var(--f);color:var(--g500);margin-bottom:8px">'
-                +(rc.lang==='es'?'Ollama no disponible. Asegúrate de que Ollama esté corriendo (ejecuta "ollama serve"), o ingresa una API key de Anthropic como respaldo:':'Ollama not available. Make sure Ollama is running ("ollama serve"), or enter an Anthropic API key as fallback:')+'</div>'
-                +'<div style="display:flex;gap:8px;margin-top:6px"><input id="inp-claude" type="password" style="flex:1;padding:8px;border:1px solid var(--g200);border-radius:8px;font:13px var(--f)" placeholder="sk-ant-...">'
-                +'<button class="rc-copy" style="white-space:nowrap" onclick="const k=document.getElementById(\'inp-claude\').value.trim();if(k){localStorage.setItem(\'fd_claude_key\',k);generateClaude(document.querySelector(\'.ai-btn\'))}">Save & Generate</button></div></div>';
-            btn.disabled=false;btn.textContent=origText;return;
+        if(!aKey){
+            out.innerHTML='<div class="ctx-box">'+(esL?'Ingresa tu API key de Claude arriba y presiona "Guardar key" primero.':'Enter your Claude API key above and press "Save key" first.')+'</div>';
+            btns.forEach(b=>{b.disabled=false});return;
+        }
+        try{result=await tryClaude(sys,usr,aKey)}catch(e){
+            out.innerHTML='<div class="ctx-box">Claude API error: '+esc(e.message)+'</div>';
+            btns.forEach(b=>{b.disabled=false});return;
+        }
+    }else{
+        try{result=await tryOllama(sys,usr)}catch(e){
+            out.innerHTML='<div class="ctx-box">'+(esL?'Ollama no disponible. Asegúrate de que esté corriendo.':'Ollama not available. Make sure it is running.')+'</div>';
+            btns.forEach(b=>{b.disabled=false});return;
         }
     }
 
     if(result){
         window._aiReply=result.reply;
-        out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg><span style="font:600 12px/1 var(--f);color:var(--blue)">'+esc(result.provider)+'</span></div>'
+        const provClr=provider==='claude'?'var(--orange)':'var(--blue)';
+        out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+provClr+'" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg><span style="font:600 12px/1 var(--f);color:'+provClr+'">'+esc(result.provider)+'</span></div>'
             +'<div class="rc-body open" style="max-height:none">'+esc(result.reply)+'</div>'
-            +'<button class="rc-copy" onclick="cpText(window._aiReply,this)">Copy to clipboard</button></div>';
+            +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+            +'<button class="rc-copy" onclick="cpText(window._aiReply,this)">Copy to clipboard</button>'
+            +'</div>'
+            +'<div style="margin-top:12px;display:flex;gap:8px;align-items:start">'
+            +'<input id="ai-extra" type="text" placeholder="'+(esL?'Ej: dile que le vamos a mandar la versión por correo':'E.g. tell them we will send the version by email')+'" style="flex:1;padding:8px 12px;border:1px solid var(--g200);border-radius:8px;font:13px var(--f)">'
+            +'<button class="rc-copy" onclick="generateAI(window._lastAIProvider,document.getElementById(\'ai-extra\').value.trim())" style="white-space:nowrap">'+(esL?'Regenerar':'Regenerate')+'</button>'
+            +'</div></div>';
     }
-    btn.disabled=false;btn.textContent=origText;
+    btns.forEach(b=>{b.disabled=false});
 }
 
 /* =============== ANALYSIS ENGINE =============== */
@@ -1557,12 +1810,13 @@ async function doSearch(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
-function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache');loadNewTickets();load()}
+function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache2');loadNewTickets();load()}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
 
 /* =============== UTILS =============== */
 function st(m,ok){const e=document.getElementById('conn-status');e.textContent=m;e.className='conn-status'+(ok?' on':'')}
+function timeAgo(d){if(!d)return'';const s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function strip(h){const d=document.createElement('div');d.innerHTML=h;return d.textContent||''}
 function trunc(s,n){return s&&s.length>n?s.substring(0,n)+'…':s||''}
