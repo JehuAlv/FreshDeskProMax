@@ -533,7 +533,7 @@ async function sel(id){
             if(page.length<100)break;
             pg++;
         }
-        D.cur=t;D.cvs=allConvs;rl();renderRight();
+        D.cur=t;D.cvs=allConvs;window._langOverride=null;rl();renderRight();
     }catch(e){document.getElementById('content').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 
@@ -938,7 +938,7 @@ function replyHTML(t,c){
     const allTextLow=(allText+' '+(t.subject||'')).toLowerCase();
     const cleanTextLow=((t.subject||'')+' '+cleanCust).toLowerCase();
 
-    const lang=detectLang(m,t.subject);
+    const lang=window._langOverride||detectLang(m,t.subject);
     const sty=analyzeAgentStyle(m);
     const ctx=extractContext(cleanTextLow,m,lastCust,lastAgent);
 
@@ -1360,7 +1360,12 @@ function replyHTML(t,c){
     window._R=R;
     window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText,suggestions:R,cannedAll:D.canned||[]};
     const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
-    let h='<div class="lang-badge">'+(lang==='es'?'Español detectado':'English detected')+'</div>';
+    let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+        +'<div class="lang-badge" style="margin-bottom:0">'+(lang==='es'?'Español detectado':'English detected')+'</div>'
+        +'<button onclick="toggleLang()" style="background:none;border:1px solid var(--g200);border-radius:980px;padding:3px 10px;font:600 10px/1 var(--f);color:var(--g500);cursor:pointer;display:flex;align-items:center;gap:4px" title="'+(lang==='es'?'Switch to English':'Cambiar a Español')+'">'
+        +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M12.5 18l3.5-7 3.5 7M15.91 16h4.18"/></svg>'
+        +(lang==='es'?'EN':'ES')
+        +'</button></div>';
     if(ctx.triedSolutions.size>0){
         h+='<div class="ctx-box"><b>'+(lang==='es'?'Soluciones ya intentadas':'Already tried')+':</b> '+Array.from(ctx.triedSolutions).join(', ')+'</div>';
     }
@@ -1403,6 +1408,13 @@ function replyHTML(t,c){
         });h+='</div>';
     }
     return h;
+}
+
+function toggleLang(){
+    const rc=window._replyCtx;if(!rc)return;
+    const newLang=rc.lang==='es'?'en':'es';
+    window._langOverride=newLang;
+    showPane(2);
 }
 
 function extractContext(allLow,m,lastCust,lastAgent){
@@ -1484,8 +1496,10 @@ function extractContext(allLow,m,lastCust,lastAgent){
         isUrgent,triedSolutions,agentAskedFor,customerProvided};
 }
 
-function cp(i,b){navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
-function cpText(txt,b){navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
+function cp(i,b){var w=fdWindow();navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500);fdNavigate(w)})}
+function cpText(txt,b){var w=fdWindow();navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500);fdNavigate(w)})}
+function fdWindow(){if(D.dom&&D.cur&&D.cur.id)return window.open('','_blank');return null}
+function fdNavigate(w){if(w&&D.dom&&D.cur&&D.cur.id)w.location='https://'+D.dom+'/a/tickets/'+D.cur.id}
 
 function aiPrompt(rc,extraCtx){
     const thread=rc.m.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
@@ -1607,9 +1621,13 @@ Phrases we use:
     usrParts.push('Customer name: '+rc.firstName);
     if(rc.ctx.mainIssue)usrParts.push('Main issue: '+rc.ctx.mainIssue);
     usrParts.push('');
-    usrParts.push('ACTION TO TAKE: '+action);
+    if(extraCtx){
+        usrParts.push('ACTION TO TAKE: '+extraCtx);
+        usrParts.push('(Auto-suggested action for reference: '+action+')');
+    }else{
+        usrParts.push('ACTION TO TAKE: '+action);
+    }
     if(triedList!=='none')usrParts.push('Do NOT suggest these (already tried): '+triedList);
-    if(extraCtx)usrParts.push('EXTRA INSTRUCTION: '+extraCtx);
     usrParts.push('');
     if(kbSection!=='(none matched)')usrParts.push('KB info:\n'+kbSection+'\n');
     usrParts.push('Email thread:');
