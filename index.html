@@ -62,6 +62,7 @@ nav .conn-status.on{color:var(--green)}
 .tabs button:hover{background:var(--g100)}
 .tabs button.on{background:var(--black);color:var(--white)}
 .tabs .cnt{margin-left:auto;font:500 11px var(--f);color:var(--g400);align-self:center;padding-right:4px}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:#e53e3e;color:#fff;font:700 10px/1 var(--f);padding:0 5px;margin-left:5px;vertical-align:middle}
 .list{flex:1;overflow-y:auto;padding:8px 0}
 .list::-webkit-scrollbar{width:0;background:transparent}
 .tkt{
@@ -223,6 +224,7 @@ nav .conn-status.on{color:var(--green)}
 .rc .rc-copy:hover{background:var(--blue2)}
 .rc .rc-copy.did{background:var(--green)}
 .lang-badge{display:inline-block;padding:4px 12px;border-radius:980px;font:600 10px/1 var(--f);letter-spacing:0.3px;color:var(--blue);background:var(--blue-bg);margin-bottom:12px;text-transform:uppercase}
+.ctx-box{padding:8px 12px;border-radius:8px;background:var(--orange-bg);color:#b36b00;font:500 11px/1.4 var(--f);margin-bottom:12px}
 
 .empty-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--g400);gap:8px;font:14px var(--f)}
 .loading-msg{text-align:center;padding:60px;color:var(--g400);font:13px var(--f)}
@@ -250,6 +252,7 @@ nav .conn-status.on{color:var(--green)}
     <!-- LEFT: ticket list -->
     <div class="left">
         <div class="tabs">
+            <button onclick="filt(this,'new')">New Tickets<span class="tab-badge" id="new-badge" style="display:none">0</span></button>
             <button class="on" onclick="filt(this,2)">My Turn</button>
             <button onclick="filt(this,3)">Waiting</button>
             <button onclick="filt(this,'all')">All</button>
@@ -280,7 +283,7 @@ const SN={2:'Open',3:'Pending',4:'Resolved',5:'Closed'};
 const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed'};
 const ICLS={1:'pill-low',2:'pill-med',3:'pill-high',4:'pill-urg'};
 
-let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',allOpen:[],lr:{}};
+let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',allOpen:[],lr:{},canned:null,newTks:[]};
 
 document.getElementById('inp-search').onkeydown=e=>{if(e.key==='Enter')doSearch()};
 document.getElementById('inp-key').onkeydown=e=>{if(e.key==='Enter')connect()};
@@ -301,7 +304,16 @@ async function connect(){
     st('Connecting...');
     try{
         const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';
-        localStorage.setItem('fd_apikey',D.key);st(D.anm,1);load();
+        localStorage.setItem('fd_apikey',D.key);st(D.anm,1);
+        get('canned_response_folders').then(folders=>{
+            if(!folders||!folders.length){D.canned=[];return}
+            return Promise.all(folders.map(f=>get('canned_response_folders/'+f.id+'/responses').catch(()=>[]))).then(all=>{
+                D.canned=[].concat(...all).filter(c=>c.title&&(c.title.includes('[MES]')||c.title.includes('[BRM]')));
+            });
+        }).catch(()=>{D.canned=[]});
+        loadNewTickets();
+        load();
+        if(!D._newPoll)D._newPoll=setInterval(()=>{loadNewTickets()},60000);
     }catch(e){
         if(e.message.includes('404')){try{await get('tickets?per_page=1');localStorage.setItem('fd_apikey',D.key);st('Connected',1);load()}catch(e2){st('Failed')}}
         else st('Failed: '+e.message);
@@ -353,8 +365,71 @@ async function loadAll(){
     applyFilter();
 }
 
+async function loadNewTickets(){
+    try{
+        let allAgents=[],apg=1;
+        while(true){
+            const a=await get('agents?per_page=100&page='+apg);
+            allAgents=allAgents.concat(a);
+            if(a.length<100)break;
+            apg++;
+        }
+        const teamIds=allAgents.filter(a=>{
+            const n=a.contact?a.contact.name:'';
+            return /alexis|ramiro/i.test(n);
+        }).map(a=>a.id);
+        if(!teamIds.length){D.newTks=[];updateNewBadge();return}
+
+        let all=[];
+        for(const aid of teamIds){
+            let q='"agent_id:'+aid+' AND status:2"';
+            let pg=1;
+            while(true){
+                const d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);
+                const res=d.results||[];
+                all=all.concat(res);
+                if(res.length<30||pg>=10)break;
+                pg++;
+            }
+        }
+        let filtered=all;
+
+        const noReply=[];
+        const batches=[];
+        for(let i=0;i<filtered.length;i+=10)batches.push(filtered.slice(i,i+10));
+        for(const batch of batches){
+            const results=await Promise.all(batch.map(t=>
+                get('tickets/'+t.id+'?include=stats,requester,company').then(d=>({id:t.id,d})).catch(()=>({id:t.id,d:null}))
+            ));
+            for(const r of results){
+                const t=filtered.find(x=>x.id===r.id);
+                if(r.d){
+                    const replied=!!(r.d.stats&&r.d.stats.agent_responded_at);
+                    t._reqName=r.d.requester?r.d.requester.name:'Unknown';
+                    t._company=r.d.company?r.d.company.name:'';
+                    if(!replied)noReply.push(t);
+                }else{
+                    noReply.push(t);
+                }
+            }
+        }
+        D.newTks=noReply.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+        updateNewBadge();
+    }catch(e){D.newTks=[];updateNewBadge()}
+}
+
+function updateNewBadge(){
+    const c=D.newTks.length;
+    const badge=document.getElementById('new-badge');
+    if(c>0){badge.textContent=c;badge.style.display='inline-flex'}
+    else{badge.style.display='none'}
+}
+
 function applyFilter(){
-    if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
+    if(D.fl==='new'){
+        D.tks=D.newTks.slice();
+    }
+    else if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
     else if(D.fl===3)D.tks=D.allOpen.filter(t=>D.lr[t.id]===false).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
     else D.tks=D.allOpen.slice();
     D.pgs=1;
@@ -365,7 +440,8 @@ async function load(){
     document.getElementById('list').innerHTML='<div class="loading-msg">Loading</div>';
     try{
         if(D.aid){
-            if(D.allOpen.length===0){await loadAll()}
+            if(D.fl==='new'){await loadNewTickets();applyFilter()}
+            else if(D.allOpen.length===0){await loadAll()}
             else{applyFilter()}
         }else{
             D.tks=await get('tickets?per_page=100&page='+D.pg+'&order_by=updated_at&order_type=desc&include=requester');
@@ -384,7 +460,9 @@ function rl(){
         const sub=co?(esc(rq)+' &middot; '+esc(co)):esc(rq);
         const stale=Math.floor((Date.now()-new Date(t.updated_at))/864e5);
         let ind='',ic='';
-        if(D.lr[t.id]===true){ind='yours';ic='YOUR TURN'}
+        const isNew=D.newTks.some(n=>n.id===t.id);
+        if(isNew){ind='new';ic='NEW'}
+        else if(D.lr[t.id]===true){ind='yours';ic='YOUR TURN'}
         else if(D.lr[t.id]===false){ind='wait';ic='WAITING'}
         return '<div class="tkt '+ac+'" onclick="sel('+t.id+')">'+
             '<div class="pri" style="background:'+(PC[t.priority]||'var(--g300)')+'"></div>'+
@@ -484,6 +562,98 @@ function threadHTML(t,c){
         h+='<div class="bubble '+tp+'"><div class="bh"><span class="nm">'+esc(x.from_email||lb)+' ('+lb+')</span><span class="dt">'+new Date(x.created_at).toLocaleString()+'</span></div><div class="bb">'+safe(x.body||'')+'</div></div>';
     });
     return h||'<div class="empty-msg">No conversations</div>';
+}
+
+/* =============== SOLUTION KNOWLEDGE BASE =============== */
+const KB=[
+    {id:'brmLogs',kw:/brm.*(log|registr)|log.*brm|registros.*brm|error.*brm|brm.*error|brm.*crash|brm.*not.work|brm.*no (funciona|sirve)/i,
+        es:'Para comprender mejor el problema, ¿nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?',
+        en:'To better understand the issue, could you please share the BRM logs following the instructions in the attached manual?'},
+    {id:'remoteUrgent',kw:/line.*(down|stop)|producti.*(stop|down|halt)|urgente?|línea.*(parada|detenida|caída)|producción.*(parada|detenida)/i,
+        es:'Me puedes compartir las credenciales para la sesión remota por favor? Lo revisamos de inmediato.',
+        en:'Could you please share the credentials for a remote session? I will look into this right away.'},
+    {id:'remoteCredentials',kw:/teamviewer|anydesk|remote.*session|sesión.*remota|conectar.*remot|remote.*connect|tv.*id/i,
+        es:'¿Me puedes compartir las credenciales para la sesión remota por favor?\n\nPor favor:\n1. Tener TeamViewer instalado y listo\n2. Compartir el ID y contraseña',
+        en:'Could you please share the credentials for the remote session?\n\nPlease:\n1. Have TeamViewer installed and ready\n2. Share the ID and password'},
+    {id:'kbrInstall',kw:/instalar.*kbr|kbr.*install|load.*kbr|cargar.*kbr|new.*kbr|nueva?.*kbr|actualizar.*kbr|update.*kbr/i,
+        es:'Para instalar:\n1. Abrir BRM\n2. File > Load KBR\n3. Seleccionar el archivo .kbr adjunto\n4. Verificar la configuración\n\nAvísame si necesitas asistencia remota durante la instalación.',
+        en:'To install:\n1. Open BRM\n2. File > Load KBR\n3. Select the attached .kbr file\n4. Verify the configuration\n\nLet me know if you need remote assistance during the installation.'},
+    {id:'fileExport',kw:/file.*export|export.*file|xslt|exportar.*archivo|archivo.*export|generar.*archivo|output.*file|csv.*export|xml.*export/i,
+        es:'Revisaré la configuración de exportación de archivos. ¿Podrías confirmar qué formato necesitan (CSV/XML/Text) y qué datos deben incluirse en el archivo?',
+        en:'I will review the file export configuration. Could you confirm what format you need (CSV/XML/Text) and what data should be included in the file?'},
+    {id:'socketError',kw:/socket.*(error|fail|disconnect|timeout|refused)|error.*socket|conexi[oó]n.*(perdida|fallida|rechazada)|port.*(block|clos)|puerto.*(bloqueado|cerrado)|tcp.*(error|fail)/i,
+        es:'¿Podrías verificar lo siguiente?\n1. Que el puerto configurado no esté bloqueado por el firewall\n2. Que el servicio remoto esté corriendo\n3. Compartir la configuración del socket en BRM (nombre, puerto, IP)',
+        en:'Could you please verify the following?\n1. That the configured port is not blocked by the firewall\n2. That the remote service is running\n3. Share the socket configuration in BRM (name, port, IP)'},
+    {id:'dbError',kw:/database.*(error|fail|connect|timeout)|error.*(database|db|sql)|sql.*(error|exception|timeout)|connection.*string|base.*datos.*(error|falla|conexión)|no.*conect.*base/i,
+        es:'¿Podrías verificar lo siguiente?\n1. Que el servidor de base de datos esté accesible desde la máquina\n2. Que las credenciales en BRM sean correctas\n3. Compartir el connection string configurado en BRM',
+        en:'Could you please verify the following?\n1. That the database server is accessible from the machine\n2. That the credentials in BRM are correct\n3. Share the connection string configured in BRM'},
+    {id:'inspectionIssue',kw:/inspection.*(result|fail|wrong|incorrect)|result.*(wrong|incorrect|missing)|defect.*(code|wrong|missing|incorrect)|falso.*(positivo|negativo)|resultado.*(incorrecto|faltante|erróneo)|código.*defecto/i,
+        es:'¿Podrías compartir un ejemplo del resultado incorrecto? De ser posible, el XML de inspección y una captura del resultado en la máquina.',
+        en:'Could you share an example of the incorrect result? If possible, the inspection XML and a screenshot of the result on the machine.'},
+    {id:'barcodeIssue',kw:/barcode.*(error|fail|read|scan|not|wrong)|error.*barcode|código.*barras.*(error|falla|no lee)|no.*lee.*barcode|lectura.*barcode/i,
+        es:'¿Podrías verificar lo siguiente?\n1. Que el checkbox "Use MES" en la AOI GUI esté activo\n2. Que el formato del barcode esté configurado correctamente en BRM\n3. Compartir una captura de la configuración de barcode',
+        en:'Could you please verify the following?\n1. That the "Use MES" checkbox in the AOI GUI is active\n2. That the barcode format is correctly configured in BRM\n3. Share a screenshot of the barcode configuration'},
+    {id:'licenseIssue',kw:/licen[sc]e.*(expir|invalid|miss|error|need|request)|activat.*(error|fail|code)|licencia.*(expirada?|inválida|faltante|error|necesit|solicitar)|activación/i,
+        es:'Adjunto encontrarás la licencia. Por favor sigue las instrucciones del manual adjunto para la activación.',
+        en:'I am sending you the license. Please follow the instructions provided in the attached manual for activation.'},
+    {id:'calibration',kw:/calibrat.*(error|fail|issue|problem|offset)|offset.*(wrong|incorrect|bad)|calibración.*(error|falla|problema)|offset.*(incorrecto|mal)/i,
+        es:'¿Podrías compartir los resultados de calibración y las capturas del offset actual? Una sesión remota nos ayudaría a revisarlo directamente.',
+        en:'Could you share the calibration results and screenshots of the current offset? A remote session would help us review this directly.'},
+    {id:'guiSetting',kw:/checkbox|gui.*setting|setting.*gui|configuración.*gui|opción.*gui|toggle|habilitar|enable.*option|disable.*option/i,
+        es:'¿Podrías confirmar si la opción mencionada se encuentra activa/desactiva en la GUI? Compartir una captura de pantalla nos ayudaría.',
+        en:'Could you confirm if the mentioned option is enabled/disabled in the GUI? Sharing a screenshot would help us.'},
+    {id:'scheduleConfirm',kw:/available.*(monday|tuesday|wednesday|thursday|friday|tomorrow|today|\d+[ap]m)|disponible.*(lunes|martes|miércoles|jueves|viernes|mañana|hoy|\d+[ap]m)|let.*know.*(time|when|date)|hora.*prefer|preferred.*time/i,
+        es:'Perfecto, agendemos la sesión remota. Estaré disponible, por favor comparte el ID y contraseña de TeamViewer cuando estés listo.',
+        en:'Sounds good, let us schedule the remote session. I will be available, please share the TeamViewer ID and password when you are ready.'},
+    {id:'thanksResolved',kw:/thank.*(resolv|fix|work|help)|gracias.*(resolv|arregl|funcion|ayuda)|it.*(work|fixed)|ya.*(funciona|sirve|quedó)|todo.*bien|problem.*solved|issue.*resolved/i,
+        es:'Me da gusto saber que todo está funcionando. Procederé a cerrar este ticket. Si necesitas asistencia adicional, no dudes en contactarnos.',
+        en:'Great to hear everything is working. I will proceed to close this ticket. If you need further assistance, do not hesitate to reach out.'},
+    {id:'sentInfo',kw:/attached|adjunto|here.*(?:are|is).*(?:log|screenshot|file|capture)|aquí.*(?:están|está).*(?:log|captura|archivo)|te.*(?:comparto|envío|mando)|sharing.*(?:log|screenshot|file)/i,
+        es:'Gracias por compartir la información. Revisaré lo enviado y te doy seguimiento.',
+        en:'Thank you for sharing the information. I will review it and get back to you.'},
+    {id:'newVersion',kw:/new.*version|latest.*version|upgrade|nueva.*versión|última.*versión|actualizar.*software|software.*update/i,
+        es:'Revisaré cuál es la última versión disponible y realizaremos la actualización. En cuanto el nuevo software esté listo lo compartiremos por aquí.',
+        en:'I will check which is the latest version available and perform an upgrade. As soon as the new software is ready we will share it here.'},
+    {id:'devRequest',kw:/develop|feature.*request|new.*feature|custom|modificación|desarrollo|nueva.*funcionalidad|personalizar|agregar.*función/i,
+        es:'Confirmo de recibido. Revisaré los requerimientos y te comparto un estimado de tiempo para el desarrollo.',
+        en:'Confirmed received. I will review the requirements and share an estimated timeline for the development.'}
+];
+
+function matchKB(text,alreadyUsed){
+    const low=text.toLowerCase();
+    return KB.filter(k=>k.kw.test(low)&&!alreadyUsed.has(k.id));
+}
+
+function findTriedSolutions(msgs){
+    const tried=new Set();
+    const agentTexts=msgs.filter(x=>x.f==='Agent').map(x=>x.t.toLowerCase()).join(' ');
+    KB.forEach(k=>{if(k.kw.test(agentTexts))tried.add(k.id)});
+    return tried;
+}
+
+function matchCanned(issueLow,allTextLow,ctx,lang){
+    if(!D.canned||!D.canned.length)return[];
+    const words=issueLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3);
+    return D.canned.filter(cr=>{
+        const title=cr.title.toLowerCase();
+        const content=(cr.content_text||strip(cr.content||'')).toLowerCase();
+        const titleWords=title.replace(/[\[\]]/g,'').split(/\s+/).filter(w=>w.length>3);
+        let score=0;
+        for(const tw of titleWords){
+            if(issueLow.includes(tw))score+=2;
+            if(allTextLow.includes(tw))score+=1;
+        }
+        for(const w of words){
+            if(title.includes(w))score+=2;
+            if(content.includes(w))score+=1;
+        }
+        if(ctx.isBRM&&title.includes('[brm]'))score+=3;
+        if(ctx.isInspection&&title.includes('[mes]'))score+=3;
+        if(ctx.isError&&(content.includes('error')||title.includes('error')))score+=2;
+        cr._score=score;
+        cr._id=cr.id;
+        return score>=5;
+    }).sort((a,b)=>b._score-a._score).slice(0,2);
 }
 
 /* =============== SMART REPLIES =============== */
@@ -753,42 +923,70 @@ function replyHTML(t,c){
 
     const R=[];
 
-    if(a.sit==='new'){
-        const issue=firstCust?firstCust.t:'';
-        const needsInfo=!ctx.hasScreenshot&&!ctx.hasLogs&&(ctx.isError||ctx.isTechnical);
-        const missingParts=[];
-        if(!ctx.hasScreenshot&&ctx.isError)missingParts.push(l.screenshots);
-        if(!ctx.hasLogs&&ctx.isError)missingParts.push(l.logFiles);
-        if(!ctx.hasVersion)missingParts.push(l.swVersion);
-        if(!ctx.hasSteps&&ctx.isError)missingParts.push(l.stepsRepro);
+    const issueText=(firstCust?firstCust.t:'')+'  '+(t.subject||'');
+    const issueLow=issueText.toLowerCase();
+    const cannedMatch=matchCanned(issueLow,allTextLow,ctx,lang);
+    const usedCannedIds=new Set();
 
-        R.push({g:gRec,nm:l.firstResponse,
-            why:(lang==='es'?'Cliente reportó: "':'Customer reported: "')+trunc(issue,120)+'"',
-            body:hi+',\n\n'+
-            (needsInfo?l.toInvestigate:
-            ctx.isScheduling?l.scheduleSession:
-            ctx.isQuote?l.prepareQuote:
-            l.willLookInto)+
-            '\n\n'+bye});
+    if(a.sit==='new'){
+        if(cannedMatch.length){
+            cannedMatch.forEach(cr=>{
+                usedCannedIds.add(cr._id);
+                const body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(t.id));
+                R.push({g:gRec,nm:cr.title,
+                    why:(lang==='es'?'Canned response coincide con problema: "':'Canned response matches issue: "')+trunc(issueText,100)+'"',
+                    body:body});
+            });
+        }
+
+        const kbHits=matchKB(issueText,new Set());
+        if(kbHits.length){
+            kbHits.slice(0,2).forEach(kb=>{
+                R.push({g:gRec,nm:l.firstResponse,
+                    why:(lang==='es'?'Detectado: ':'Detected: ')+kb.id+' → "'+ trunc(issueText,100)+'"',
+                    body:hi+',\n\n'+kb[lang]+'\n\n'+bye});
+            });
+        }else if(!cannedMatch.length){
+            const needsInfo=!ctx.hasScreenshot&&!ctx.hasLogs&&(ctx.isError||ctx.isTechnical);
+            R.push({g:gRec,nm:l.firstResponse,
+                why:(lang==='es'?'Cliente reportó: "':'Customer reported: "')+trunc(issueText,120)+'"',
+                body:hi+',\n\n'+
+                (ctx.isUrgent?KB.find(k=>k.id==='remoteUrgent')[lang]:
+                needsInfo?l.toInvestigate:
+                ctx.isScheduling?l.scheduleSession:
+                ctx.isQuote?l.prepareQuote:
+                l.willLookInto)+
+                '\n\n'+bye});
+        }
 
         if(ctx.isTechnical)
-            R.push({g:gRec,nm:l.schedRemote,
+            R.push({g:gAlt,nm:l.schedRemote,
                 why:(lang==='es'?'Tema técnico sobre ':'Technical issue about ')+ctx.mainIssue+(lang==='es'?' — remoto es más rápido':' — remote is faster'),
                 body:hi+',\n\n'+l.remoteWouldHelp+'\n\n'+l.pleaseTV+'\n\n'+bye});
     }
 
     if(a.sit==='respond'){
+        if(cannedMatch.length){
+            cannedMatch.forEach(cr=>{
+                usedCannedIds.add(cr._id);
+                const body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(t.id));
+                R.push({g:gRec,nm:cr.title,
+                    why:(lang==='es'?'Canned response coincide con problema inicial: "':'Canned response matches initial issue: "')+trunc(issueText,100)+'"',
+                    body:body});
+            });
+        }
         const custText=lastCust?lastCust.t:'';
         const custLow=custText.toLowerCase();
         const hasQ=custText.match(/\?/);
         const saysYes=custLow.match(/\b(yes|ok|sure|agree|confirm|available|can do|sounds good|go ahead|sí|si|claro|de acuerdo|confirmo|disponible|adelante|listo|perfecto)\b/i);
-        const saysNo=custLow.match(/\b(no|not|can't|cannot|unable|don't|doesn't|won't|unavailable|no puedo|no es posible|imposible)\b/i);
-        const asksWhen=custLow.match(/\b(when|what time|schedule|availability|date|cuándo|cuando|horario|fecha|disponibilidad|qué hora)\b/i);
         const asksHow=custLow.match(/\b(how to|how do|how can|steps|instructions|procedure|cómo|como|pasos|instrucciones|procedimiento)\b/i);
         const reportsNew=custLow.match(/\b(now|another|also|still|again|new issue|different|happening again|ahora|otro|también|sigue|de nuevo|nuevo problema|diferente|otra vez|persiste)\b/i);
         const sendsInfo=custLow.match(/\b(attached|screenshot|log|here is|please find|sharing|sending|adjunto|captura|le comparto|aquí está|le envío|enviando)\b/i);
         const mentionsTV=custLow.match(/teamviewer|remote|tv\s*id|anydesk|remota|sesión remota/i);
         const mentionsDone=custLow.match(/\b(done|completed|installed|working|fixed|resolved|looks good|thank|listo|completado|instalado|funcionando|resuelto|se arregló|gracias|todo bien)\b/i);
+
+        const kbHits=matchKB(custText,ctx.triedSolutions);
+        const kbAll=matchKB(allText,ctx.triedSolutions);
 
         if(mentionsDone){
             R.push({g:gRec,nm:l.confirmResolution,
@@ -796,39 +994,65 @@ function replyHTML(t,c){
                 body:hi+',\n\n'+l.gladResolved+'\n\n'+(ctx.hadRemoteSession?l.afterRemote:'')+l.letUsKnow+'\n\n'+bye});
         }
 
-        if(saysYes&&(ctx.wasScheduling||mentionsTV)){
+        if(ctx.customerProvided==='remote_credentials'||mentionsTV){
             R.push({g:gRec,nm:l.confirmRemote,
-                why:(lang==='es'?'Cliente aceptó sesión remota: "':'Customer agreed to remote: "')+trunc(custText,100)+'"',
-                body:hi+',\n\n'+l.thankConfirm+(asksWhen?'':l.shareDateTime)+'.\n\n'+l.beforeConnect+'\n\n'+bye});
+                why:(lang==='es'?'Cliente compartió credenciales/mencionó remota: "':'Customer shared credentials/mentioned remote: "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+l.thankConfirm+l.shareDateTime+'.\n\n'+l.beforeConnect+'\n\n'+bye});
+        }else if(saysYes&&ctx.wasScheduling){
+            R.push({g:gRec,nm:l.confirmRemote,
+                why:(lang==='es'?'Cliente aceptó sesión remota':'Customer agreed to remote session'),
+                body:hi+',\n\n'+l.thankConfirm+l.shareDateTime+'.\n\n'+l.beforeConnect+'\n\n'+bye});
         }
 
-        if(sendsInfo){
-            const what=custLow.match(/screenshot|captura/)?l.theScreenshots:(custLow.match(/log/)?l.theLogFiles:l.theInfo);
-            const ref=custLow.match(/screenshot|captura|log|file|archivo/)?l.them:l.this_;
+        if(ctx.customerProvided==='logs'||ctx.customerProvided==='screenshots'||ctx.customerProvided==='files'){
+            const what=ctx.customerProvided==='screenshots'?l.theScreenshots:(ctx.customerProvided==='logs'?l.theLogFiles:l.theInfo);
+            const nextAction=kbHits.length?kbHits[0][lang]:l.willReview+(ctx.customerProvided==='logs'||ctx.customerProvided==='screenshots'?l.them:l.this_)+l.getBackFindings;
             R.push({g:gRec,nm:l.ackInfo,
-                why:(lang==='es'?'Cliente envió información: "':'Customer sent info: "')+trunc(custText,100)+'"',
-                body:hi+',\n\n'+l.thankSharing+what+'. '+l.willReview+ref+l.getBackFindings+'\n\n'+(ctx.isError?l.ifNoticeMore+'\n\n':'')+bye});
+                why:(lang==='es'?'Cliente envió '+ctx.customerProvided+': "':'Customer sent '+ctx.customerProvided+': "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+l.thankSharing+what+'.\n\n'+nextAction+'\n\n'+bye});
+        }
+
+        if(ctx.customerProvided==='installed'){
+            R.push({g:gRec,nm:lang==='es'?'Verificar Instalación':'Verify Installation',
+                why:(lang==='es'?'Cliente indica que instaló: "':'Customer indicates installed: "')+trunc(custText,100)+'"',
+                body:hi+',\n\n'+(lang==='es'?
+                    'Gracias por confirmar la instalación. ¿Podrías verificar que todo funcione correctamente y compartir los resultados?':
+                    'Thank you for confirming the installation. Could you verify that everything is working correctly and share the results?')+'\n\n'+bye});
+        }
+
+        if(kbHits.length&&!mentionsDone&&!ctx.customerProvided){
+            kbHits.slice(0,2).forEach(kb=>{
+                const alreadyAdded=R.some(r=>r.body.includes(kb[lang]));
+                if(!alreadyAdded){
+                    R.push({g:gRec,nm:(lang==='es'?'Respuesta: ':'Response: ')+kb.id,
+                        why:(lang==='es'?'Detectado en mensaje: ':'Detected in message: ')+kb.id+' → "'+trunc(custText,80)+'"',
+                        body:hi+',\n\n'+kb[lang]+'\n\n'+bye});
+                }
+            });
         }
 
         if(hasQ&&asksHow){
+            const kbInstr=kbAll.find(k=>['kbrInstall','fileExport','barcodeIssue','guiSetting'].includes(k.id));
             R.push({g:gRec,nm:l.provideInstructions,
                 why:(lang==='es'?'Cliente pregunta cómo: "':'Customer asking how to: "')+trunc(custText,100)+'"',
-                body:hi+',\n\n'+l.regQuestion+'\n\n1. ['+l.step+' 1]\n2. ['+l.step+' 2]\n3. ['+l.step+' 3]\n\n'+(ctx.isBRM?l.backupFirst+'\n\n':'')+l.questionsProcess+'\n\n'+bye});
+                body:hi+',\n\n'+(kbInstr?kbInstr[lang]:l.regQuestion+'\n\n1. ['+l.step+' 1]\n2. ['+l.step+' 2]\n3. ['+l.step+' 3]')+'\n\n'+(ctx.isBRM?l.backupFirst+'\n\n':'')+l.questionsProcess+'\n\n'+bye});
         }
 
         if(reportsNew&&!mentionsDone){
             const isPersist=custLow.match(/again|still|persist|sigue|otra vez|persiste/i);
+            const kbFix=kbHits.length?'\n\n'+kbHits[0][lang]:'';
             R.push({g:gRec,nm:l.ackNewIssue,
                 why:(lang==='es'?'Cliente reporta problema persiste/nuevo: "':'Customer reports issue persists/new: "')+trunc(custText,100)+'"',
-                body:hi+',\n\n'+(lang==='es'?'Gracias por informarnos':'Thank you for letting me know')+(isPersist?l.persisting:l.additionalIssue)+'. '+(isPersist?l.understandFrustrating:l.importantRightAway)+'\n\n'+
-                (ctx.hadRemoteSession?l.anotherRemote:ctx.isTechnical?l.shareNewErrors:l.willReviewDetails)+'\n\n'+bye});
+                body:hi+',\n\n'+(lang==='es'?'Gracias por informarnos':'Thank you for letting me know')+(isPersist?l.persisting:l.additionalIssue)+'. '+(isPersist?l.understandFrustrating:l.importantRightAway)+kbFix+'\n\n'+
+                (ctx.hadRemoteSession?l.anotherRemote:ctx.isTechnical&&!kbFix?l.shareNewErrors:(!kbFix?l.willReviewDetails:''))+'\n\n'+bye});
         }
 
         if(!R.length){
+            const fallbackKB=kbAll.length?kbAll[0][lang]:'';
             R.push({g:gRec,nm:l.replyCustomer,
                 why:(lang==='es'?'Último mensaje: "':'Last message: "')+trunc(custText,120)+'"',
-                body:hi+',\n\n'+(saysYes?l.thankConfirming:l.thankMessage)+(hasQ?l.regYourQuestion+'\n\n':
-                (ctx.isError?l.investigating:'')+l.getBackShortly+'\n\n')+
+                body:hi+',\n\n'+(saysYes?l.thankConfirming:'')+(hasQ?(lang==='es'?'Respecto a tu pregunta — ':'Regarding your question — ')+(fallbackKB||'['+( lang==='es'?'tu respuesta aquí':'your answer here')+']')+'\n\n':
+                (fallbackKB?fallbackKB+'\n\n':(ctx.isError?l.investigating:'')+l.getBackShortly+'\n\n'))+
                 (ctx.pendingAction?l.asDiscussed+ctx.pendingAction+'.\n\n':'')+bye});
         }
 
@@ -836,6 +1060,11 @@ function replyHTML(t,c){
             R.push({g:gAlt,nm:l.suggestRemoteNm,
                 why:lang==='es'?'Sin sesión remota aún para este tema técnico':'No remote session yet for this technical issue',
                 body:hi+',\n\n'+l.suggestRemote+'\n\n'+l.availableSession+'\n\n'+bye});
+
+        if(ctx.triedSolutions.size>0){
+            const triedList=Array.from(ctx.triedSolutions).join(', ');
+            R.forEach(r=>{r.why+=' | '+(lang==='es'?'Ya intentado: ':'Already tried: ')+triedList});
+        }
     }
 
     if(a.sit==='waiting'||a.sit==='followup'){
@@ -874,9 +1103,30 @@ function replyHTML(t,c){
     R.push({g:gClose,nm:l.closeTicket,why:(lang==='es'?'Usar cuando ':'Use when ')+subj+(lang==='es'?' esté completamente resuelto':' is fully resolved'),
         body:hi+',\n\n'+l.gladConfirm+(ctx.hadRemoteSession?'\n\n'+l.thankRemoteTime:'')+'\n\n'+l.willClose+'\n\n'+bye});
 
+    if(D.canned&&D.canned.length){
+        const gCanned='Canned Responses';
+        const remaining=D.canned.filter(cr=>!usedCannedIds.has(cr.id));
+        const topics=findTopics(allTextLow);
+        const relevantCanned=remaining.filter(cr=>{
+            const title=cr.title.toLowerCase();
+            if(topics.includes('BRM/KBR')&&title.includes('[brm]'))return true;
+            if((topics.includes('Inspection')||topics.includes('Export')||topics.includes('Error'))&&title.includes('[mes]'))return true;
+            if(ctx.isBRM&&title.includes('[brm]'))return true;
+            if(ctx.isInspection&&title.includes('[mes]'))return true;
+            return false;
+        });
+        relevantCanned.forEach(cr=>{
+            const body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(t.id));
+            R.push({g:gCanned,nm:cr.title,why:lang==='es'?'Canned response de Freshdesk':'Freshdesk canned response',body:body});
+        });
+    }
+
     window._R=R;
     const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
     let h='<div class="lang-badge">'+(lang==='es'?'Español detectado':'English detected')+'</div>';
+    if(ctx.triedSolutions.size>0){
+        h+='<div class="ctx-box"><b>'+(lang==='es'?'Soluciones ya intentadas':'Already tried')+':</b> '+Array.from(ctx.triedSolutions).join(', ')+'</div>';
+    }
     for(const[g,items]of Object.entries(G)){
         h+='<div class="rg"><h3>'+esc(g)+'</h3>';
         items.forEach(r=>{
@@ -936,8 +1186,35 @@ function extractContext(allLow,m,lastCust,lastAgent){
         }
     }
 
+    const isUrgent=!!allLow.match(/urgent|asap|critical|line.*(down|stop)|producti.*(stop|down|halt)|urgente|crítico|línea.*(parada|detenida|caída)|producción.*(parada|detenida)/i);
+
+    const triedSolutions=findTriedSolutions(m);
+
+    let agentAskedFor='';
+    if(lastAgent){
+        const at=lastAgent.t.toLowerCase();
+        if(at.match(/log|registr/i))agentAskedFor='logs';
+        else if(at.match(/screenshot|captura|imagen/i))agentAskedFor='screenshots';
+        else if(at.match(/teamviewer|remote|remota|credencial/i))agentAskedFor='remote';
+        else if(at.match(/version|versión/i))agentAskedFor='version';
+        else if(at.match(/instalar|install|load.*kbr|cargar.*kbr/i))agentAskedFor='install';
+    }
+
+    let customerProvided='';
+    if(lastCust){
+        const ct=lastCust.t.toLowerCase();
+        if(ct.match(/attach|adjunto|here.*(is|are)|aquí.*está|te.*(comparto|envío|mando)/i)){
+            if(ct.match(/log|registr/i))customerProvided='logs';
+            else if(ct.match(/screenshot|captura|imagen/i))customerProvided='screenshots';
+            else customerProvided='files';
+        }
+        if(ct.match(/teamviewer|tv.*id|anydesk|\d{3,}.*\d{3,}/i))customerProvided='remote_credentials';
+        if(ct.match(/(done|install|complet|listo|instalado|ya.*cargué|loaded)/i))customerProvided='installed';
+    }
+
     return{isError,isTechnical,isBRM,isInspection,isQuote,isScheduling,hadRemoteSession,
-        hasScreenshot,hasLogs,hasVersion,hasSteps,mainIssue,wasScheduling,pendingAction};
+        hasScreenshot,hasLogs,hasVersion,hasSteps,mainIssue,wasScheduling,pendingAction,
+        isUrgent,triedSolutions,agentAskedFor,customerProvided};
 }
 
 function cp(i,b){navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
@@ -945,7 +1222,8 @@ function cp(i,b){navigator.clipboard.writeText(window._R[i].body).then(()=>{b.te
 /* =============== ANALYSIS ENGINE =============== */
 function msgs(t,c){
     const r=[];
-    if(t.description_text)r.push({f:'Customer',t:t.description_text,d:t.created_at});
+    const desc=t.description_text||strip(t.description||'');
+    if(desc)r.push({f:'Customer',t:desc,d:t.created_at});
     c.forEach(x=>{r.push({f:x.private?'Note':(x.incoming?'Customer':'Agent'),t:x.body_text||strip(x.body||''),d:x.created_at})});
     return r;
 }
@@ -993,8 +1271,8 @@ async function doSearch(){
         document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
-function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(D.allOpen.length>0){applyFilter()}else{load()}}
-function refresh(){D.allOpen=[];D.lr={};localStorage.removeItem('fd_cache');load()}
+function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){load()}else if(D.allOpen.length>0){applyFilter()}else{load()}}
+function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache');loadNewTickets();load()}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
 
