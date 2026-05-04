@@ -322,37 +322,34 @@ async function loadAll(){
     D.allOpen=all.filter(t=>t.status!==4&&t.status!==5);
     document.getElementById('list').innerHTML='<div class="loading-msg">Loading details 0/'+D.allOpen.length+'</div>';
     D.lr={};
-    const contactCache={};
-    const companyCache={};
+    const cache=JSON.parse(localStorage.getItem('fd_cache')||'{}');
     const batches=[];
-    for(let i=0;i<D.allOpen.length;i+=5)batches.push(D.allOpen.slice(i,i+5));
+    for(let i=0;i<D.allOpen.length;i+=10)batches.push(D.allOpen.slice(i,i+10));
     let done=0;
     for(const batch of batches){
         const results=await Promise.all(batch.map(t=>{
-            const cProm=get('tickets/'+t.id+'/conversations').catch(()=>[]);
-            const rProm=(t.requester_id&&!contactCache[t.requester_id])?get('contacts/'+t.requester_id).catch(()=>null):Promise.resolve(null);
-            return Promise.all([cProm,rProm]).then(([c,r])=>[t,c,r]);
+            const c=cache[t.id];
+            if(c&&c.u===t.updated_at){return Promise.resolve({id:t.id,cached:true,lr:c.lr,rn:c.rn,co:c.co})}
+            return get('tickets/'+t.id+'?include=stats,requester,company').then(d=>({id:t.id,cached:false,d})).catch(()=>({id:t.id,cached:true,lr:true,rn:'Unknown',co:''}));
         }));
-        for(const[t,convs,contact]of results){
-            if(convs.length>0){
-                const last=convs[convs.length-1];
-                D.lr[t.id]=!!last.incoming;
+        for(const r of results){
+            const t=D.allOpen.find(x=>x.id===r.id);
+            if(r.cached&&!r.d){
+                D.lr[t.id]=r.lr;t._reqName=r.rn;t._company=r.co;
             }else{
-                D.lr[t.id]=true;
-            }
-            if(contact){contactCache[t.requester_id]=contact}
-            if(contactCache[t.requester_id]){
-                const ct=contactCache[t.requester_id];
-                t._reqName=ct.name||'Unknown';
-                if(ct.company_id&&!companyCache[ct.company_id]){
-                    try{companyCache[ct.company_id]=await get('companies/'+ct.company_id)}catch(e){}
-                }
-                t._company=companyCache[ct.company_id]?companyCache[ct.company_id].name:'';
+                const d=r.d;
+                const rr=d.stats?d.stats.requester_responded_at:null;
+                const ar=d.stats?d.stats.agent_responded_at:null;
+                D.lr[t.id]=!ar||!rr?true:new Date(rr)>new Date(ar);
+                t._reqName=d.requester?d.requester.name:'Unknown';
+                t._company=d.company?d.company.name:'';
+                cache[t.id]={u:t.updated_at,lr:D.lr[t.id],rn:t._reqName,co:t._company};
             }
             done++;
         }
         document.getElementById('list').innerHTML='<div class="loading-msg">Loading details '+done+'/'+D.allOpen.length+'</div>';
     }
+    try{localStorage.setItem('fd_cache',JSON.stringify(cache))}catch(e){}
     applyFilter();
 }
 
@@ -997,7 +994,7 @@ async function doSearch(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(D.allOpen.length>0){applyFilter()}else{load()}}
-function refresh(){D.allOpen=[];D.lr={};load()}
+function refresh(){D.allOpen=[];D.lr={};localStorage.removeItem('fd_cache');load()}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
 
