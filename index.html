@@ -237,10 +237,10 @@ nav .conn-status.on{color:var(--green)}
 .ai-btn:hover{background:linear-gradient(135deg,#4f46e5,#7c3aed,#9333ea);box-shadow:0 6px 20px rgba(99,102,241,.5);transform:translateY(-1px)}
 .ai-btn:disabled{opacity:.6;cursor:wait;filter:grayscale(.3)}
 .ai-btn svg{width:18px;height:18px;flex-shrink:0}
-.ai-result{margin-top:12px;padding:16px;border-radius:12px;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 20%,transparent)}
+.ai-result{margin-top:12px;padding:16px;border-radius:12px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.12),rgba(168,85,247,.08));border:1px solid rgba(139,92,246,.25)}
 .ai-result .rc-body{white-space:pre-wrap;font:13px/1.6 var(--f);color:var(--black);margin:8px 0}
-.ai-result .rc-copy{margin-top:10px;height:32px;padding:0 18px;border:none;border-radius:980px;font:500 12px/32px var(--f);cursor:pointer;background:var(--blue);color:var(--white);transition:all .15s}
-.ai-result .rc-copy:hover{background:var(--blue2)}
+.ai-result .rc-copy{margin-top:10px;height:32px;padding:0 18px;border:none;border-radius:980px;font:500 12px/32px var(--f);cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;transition:all .15s}
+.ai-result .rc-copy:hover{background:linear-gradient(135deg,#4f46e5,#7c3aed)}
 .ai-result .rc-copy.did{background:var(--green)}
 
 .empty-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--g400);gap:8px;font:14px var(--f)}
@@ -1616,8 +1616,21 @@ function aiPrompt(rc,extraCtx){
     const lastAgentMsgs=rc.m.filter(x=>x.f==='Agent');
     const lastAgent=lastAgentMsgs.length?lastAgentMsgs[lastAgentMsgs.length-1]:null;
 
+    const isWaiting=D.fl===3;
     let action='';
-    if(!lastAgent){
+    if(isWaiting&&lastAgent){
+        const agentText=cleanEmailBody(lastAgent.t).toLowerCase();
+        if(agentText.match(/teamviewer|remote|session|sesión|conectar/i))
+            action='Follow up: ask if they are available for the remote session you proposed';
+        else if(agentText.match(/issue.*report|log|registro|reporte/i))
+            action='Follow up: ask if they were able to gather the logs/issue report you requested';
+        else if(agentText.match(/kbr|apply|install|aplicar|instalar/i))
+            action='Follow up: ask if they applied the KBR and if everything is working';
+        else if(agentText.match(/screenshot|captura|imagen/i))
+            action='Follow up: ask if they were able to get the screenshots you requested';
+        else
+            action='Follow up: politely ask for a status update on your last message';
+    }else if(!lastAgent){
         if(rc.ctx.isUrgent)action='Ask for TeamViewer credentials for urgent remote session';
         else if(rc.ctx.isError)action='Ask for BRM logs with attached manual';
         else if(rc.ctx.isQuote)action='Acknowledge and give timeline for quote';
@@ -1719,6 +1732,11 @@ USEFUL PHRASES:
         }else{
             usrParts.push('INSTRUCTION:\n'+extraCtx);
         }
+    }else if(isWaiting&&lastAgent){
+        const lastAgentText=cleanEmailBody(lastAgent.t);
+        usrParts.push('YOUR LAST MESSAGE (agent):\n'+lastAgentText);
+        if(lastCust)usrParts.push('\nCUSTOMER\'S LAST MESSAGE (before yours):\n'+lastCustText);
+        usrParts.push('\nACTION: '+action);
     }else{
         usrParts.push('CUSTOMER\'S LAST MESSAGE:\n'+lastCustText);
         usrParts.push('\nACTION: '+action);
@@ -1779,7 +1797,7 @@ async function generateAI(provider,extraCtx){
 
     if(result){
         window._aiReply=result.reply;
-        out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg><span style="font:600 12px/1 var(--f);color:var(--blue)">'+esc(result.provider)+'</span></div>'
+        out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#8b5cf6"><path d="M9.5 2l1.5 3.5L14.5 7l-3.5 1.5L9.5 12l-1.5-3.5L4.5 7l3.5-1.5zM19 11l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5L15 14.5l2.5-1zM9.5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg><span style="font:600 12px/1 var(--f);color:#8b5cf6">'+esc(result.provider)+'</span></div>'
             +'<div class="rc-body open" style="max-height:none">'+esc(result.reply)+'</div>'
             +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
             +'<button class="rc-copy" onclick="cpText(window._aiReply,this)">Copy to clipboard</button>'
