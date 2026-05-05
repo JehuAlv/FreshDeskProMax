@@ -1867,12 +1867,21 @@ async function doSearch(){
     const q=document.getElementById('inp-search').value.trim();
     if(!q){load();return}if(!D.key)return st('Connect first');
     document.getElementById('list').innerHTML='<div class="loading-msg">Searching</div>';
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
     try{
-        let qr='"'+q;if(D.aid)qr+=' AND agent_id:'+D.aid;qr+='"';
-        const d=await get('search/tickets?query='+encodeURIComponent(qr));
-        D.tks=d.results||[];D.pg=1;D.pgs=Math.ceil((d.total||D.tks.length)/30)||1;
-        rl();up();document.getElementById('cnt').textContent=(d.total||D.tks.length);
-        document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
+        if(/^\d+$/.test(q)){
+            const t=await get('tickets/'+q+'?include=requester,company');
+            t._reqName=t.requester?t.requester.name:'Unknown';
+            t._company=t.company?t.company.name:'';
+            D.tks=[t];D.pg=1;D.pgs=1;
+            rl();up();document.getElementById('cnt').textContent='1';
+            sel(t.id);
+        }else{
+            let qr='"'+q;if(D.aid)qr+=' AND agent_id:'+D.aid;qr+='"';
+            const d=await get('search/tickets?query='+encodeURIComponent(qr));
+            D.tks=d.results||[];D.pg=1;D.pgs=Math.ceil((d.total||D.tks.length)/30)||1;
+            rl();up();document.getElementById('cnt').textContent=(d.total||D.tks.length);
+        }
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
