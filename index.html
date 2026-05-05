@@ -249,6 +249,32 @@ nav .conn-status.on{color:var(--green)}
 
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== SEND REPLY MODAL ===== */
+.send-modal-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;animation:fadeUp .2s ease}
+.send-modal{background:var(--white);border-radius:var(--r);width:640px;max-width:90vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.send-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:0.5px solid var(--g200)}
+.send-modal-hdr h2{font:600 16px/1 var(--f);color:var(--black);letter-spacing:-.3px}
+.send-modal-hdr .close-btn{background:none;border:none;font-size:18px;color:var(--g400);cursor:pointer;padding:4px 8px;border-radius:6px}
+.send-modal-hdr .close-btn:hover{background:var(--g100);color:var(--black)}
+.send-modal-body{flex:1;overflow-y:auto;padding:20px 22px}
+.send-modal-body label{font:600 11px var(--f);color:var(--g400);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
+.send-modal-body textarea{width:100%;min-height:180px;border:1px solid var(--g200);border-radius:var(--r2);padding:12px 14px;font:13px/1.7 var(--f);color:var(--g700);resize:vertical;outline:none;transition:border-color .2s}
+.send-modal-body textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,122,255,.12)}
+.send-modal-sig{margin-top:14px;padding:12px 14px;border:1px solid var(--g200);border-radius:var(--r2);background:var(--g50);font:12px/1.6 var(--f);color:var(--g600);max-height:160px;overflow-y:auto}
+.send-modal-sig img{max-width:100%}
+.send-modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:0.5px solid var(--g200)}
+.send-modal-footer .sm-btn{height:36px;padding:0 20px;border:none;border-radius:980px;font:600 13px/36px var(--f);cursor:pointer;transition:all .15s}
+.send-modal-footer .sm-cancel{background:var(--g100);color:var(--g600)}
+.send-modal-footer .sm-cancel:hover{background:var(--g200)}
+.send-modal-footer .sm-send{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
+.send-modal-footer .sm-send:hover{opacity:.88}
+.send-modal-footer .sm-send:disabled{opacity:.5;cursor:wait}
+.send-modal-status{font:500 12px var(--f);color:var(--g500);margin-right:auto}
+.send-modal-status.err{color:var(--red)}
+.send-modal-status.ok{color:#16a34a}
+.btn-send{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;margin-left:4px}
+.btn-send:hover{opacity:.88}
 </style>
 </head>
 <body>
@@ -300,7 +326,7 @@ const SN={2:'Open',3:'Pending',4:'Resolved',5:'Closed'};
 const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed'};
 const ICLS={1:'pill-low',2:'pill-med',3:'pill-high',4:'pill-urg'};
 
-let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',allOpen:[],lr:{},canned:null,newTks:[]};
+let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',sig:'',allOpen:[],lr:{},canned:null,newTks:[]};
 
 document.getElementById('inp-search').onkeydown=e=>{if(e.key==='Enter')doSearch()};
 document.getElementById('inp-key').onkeydown=e=>{if(e.key==='Enter')connect()};
@@ -326,7 +352,7 @@ async function connect(){
     if(!D.key||!D.dom)return st('Enter key & domain');
     st('Connecting...');
     try{
-        const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';
+        const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';D.sig=me.signature||'';
         localStorage.setItem('fd_apikey',D.key);st(D.anm,1);
         loadCanned();
         await load();
@@ -1501,7 +1527,8 @@ function replyHTML(t,c){
         items.forEach(r=>{
             h+='<div class="rc"><div class="rc-title">'+esc(r.nm)+'</div><div class="rc-why">'+esc(r.why)+'</div>'+
                 '<div class="rc-body shut" onclick="this.classList.toggle(\'shut\');this.classList.toggle(\'open\')">'+esc(r.body)+'</div>'+
-                '<button class="rc-copy" onclick="cp('+r.i+',this)">Copy to clipboard</button></div>';
+                '<button class="rc-copy" onclick="cp('+r.i+',this)">Copy to clipboard</button>'+
+                '<button class="rc-copy btn-send" onclick="openSendModal(window._R['+r.i+'].body)">Send Reply</button></div>';
         });h+='</div>';
     }
     return h;
@@ -1801,6 +1828,7 @@ async function generateAI(provider,extraCtx){
             +'<div class="rc-body open" style="max-height:none">'+esc(result.reply)+'</div>'
             +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
             +'<button class="rc-copy" onclick="cpText(window._aiReply,this)">Copy to clipboard</button>'
+            +'<button class="rc-copy btn-send" onclick="openSendModal(window._aiReply)">Send Reply</button>'
             +'</div>'
             +'<div style="margin-top:12px;display:flex;gap:8px;align-items:start">'
             +'<input id="ai-extra" type="text" placeholder="'+(esL?'Ej: dile que le vamos a mandar la versión por correo':'E.g. tell them we will send the version by email')+'" style="flex:1;padding:8px 12px;border:1px solid var(--g200);border-radius:8px;font:13px var(--f)">'
@@ -1943,6 +1971,109 @@ async function createSPFolder(ticketId){
         btn.style.opacity='1';
         btn.disabled=false;
         btn.style.color='#dc2626';btn.style.borderColor='#dc2626';
+    }
+}
+
+/* =============== SEND REPLY MODAL =============== */
+function cleanSignature(html){
+    if(!html)return '';
+    var el=document.createElement('div');
+    el.innerHTML=html;
+    var text=el.textContent||el.innerText||'';
+    html=html.replace(/\{\{ticket\.url\}\}/g,'');
+    var greetRx=/^(hi|hello|hey|hola|dear|greetings|buenos días|buenas tardes|buen día|estimado|saludos)[,.\s!]*/i;
+    var byeRx=/(best regards|kind regards|regards|sincerely|thanks|thank you|saludos cordiales|saludos|cordialmente|atentamente|gracias)[,.\s]*/i;
+    var lines=html.split(/<br\s*\/?>/i);
+    var filtered=[];
+    for(var i=0;i<lines.length;i++){
+        var lt=lines[i].replace(/<[^>]*>/g,'').trim();
+        if(!lt)continue;
+        if(i<2&&greetRx.test(lt))continue;
+        if(byeRx.test(lt))continue;
+        filtered.push(lines[i]);
+    }
+    return filtered.join('<br>');
+}
+
+function openSendModal(text){
+    if(!D.cur)return;
+    const rc=window._replyCtx;
+    const esL=rc&&rc.lang==='es';
+    const overlay=document.createElement('div');
+    overlay.className='send-modal-overlay';
+    overlay.id='send-modal-overlay';
+    overlay.onclick=function(e){if(e.target===overlay)closeSendModal()};
+    overlay.innerHTML=
+        '<div class="send-modal">'
+        +'<div class="send-modal-hdr"><h2>'+(esL?'Enviar Respuesta':'Send Reply')+' - #'+D.cur.id+'</h2><button class="close-btn" onclick="closeSendModal()">&times;</button></div>'
+        +'<div class="send-modal-body">'
+        +'<label>'+(esL?'Respuesta (editable)':'Reply (editable)')+'</label>'
+        +'<textarea id="send-modal-text">'+esc(text)+'</textarea>'
+        +'<label style="margin-top:14px">'+(esL?'Firma del agente':'Agent signature')+'</label>'
+        +'<div class="send-modal-sig"><a href="https://'+D.dom+'/a/tickets/'+D.cur.id+'">Ticket #'+D.cur.id+'</a>'
+        +(D.sig?'<br><br>'+cleanSignature(D.sig):'')+'</div>'
+        +'</div>'
+        +'<div class="send-modal-footer">'
+        +'<span class="send-modal-status" id="send-modal-status"></span>'
+        +'<button class="sm-btn sm-cancel" onclick="closeSendModal()">'+(esL?'Cancelar':'Cancel')+'</button>'
+        +'<button class="sm-btn sm-send" id="send-modal-confirm" onclick="confirmSendReply()">'+(esL?'Enviar':'Send')+'</button>'
+        +'</div></div>';
+    document.body.appendChild(overlay);
+    setTimeout(()=>{document.getElementById('send-modal-text').focus()},100);
+}
+
+function closeSendModal(){
+    const o=document.getElementById('send-modal-overlay');
+    if(o)o.remove();
+}
+
+async function confirmSendReply(){
+    const textarea=document.getElementById('send-modal-text');
+    const statusEl=document.getElementById('send-modal-status');
+    const sendBtn=document.getElementById('send-modal-confirm');
+    if(!textarea||!D.cur)return;
+
+    const text=textarea.value.trim();
+    if(!text){statusEl.className='send-modal-status err';statusEl.textContent='Reply cannot be empty';return}
+
+    sendBtn.disabled=true;
+    statusEl.className='send-modal-status';
+    const rc=window._replyCtx;
+    const esL=rc&&rc.lang==='es';
+    statusEl.textContent=esL?'Enviando...':'Sending...';
+
+    try{
+        let bodyHtml=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+        var ticketUrl='https://'+D.dom+'/a/tickets/'+D.cur.id;
+        bodyHtml+='<br><br><a href="'+ticketUrl+'">Ticket #'+D.cur.id+'</a>';
+        if(D.sig)bodyHtml+='<br><br>'+cleanSignature(D.sig);
+
+        const resp=await fetch('/fd/tickets/'+D.cur.id+'/reply',{
+            method:'POST',
+            headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},
+            body:JSON.stringify({body:bodyHtml})
+        });
+
+        if(!resp.ok){
+            const err=await resp.json().catch(()=>({}));
+            throw new Error(err.description||err.message||'Error '+resp.status);
+        }
+
+        statusEl.className='send-modal-status ok';
+        statusEl.textContent=esL?'Enviado correctamente':'Reply sent successfully';
+        sendBtn.style.display='none';
+
+        D.lr[D.cur.id]=false;
+        if(D.fl===2)applyFilter();
+
+        setTimeout(()=>{
+            closeSendModal();
+            sel(D.cur.id);
+        },1200);
+    }catch(e){
+        statusEl.className='send-modal-status err';
+        statusEl.textContent=(esL?'Error: ':'Error: ')+e.message;
+        sendBtn.disabled=false;
     }
 }
 
