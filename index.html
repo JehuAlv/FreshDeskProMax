@@ -232,10 +232,10 @@ nav .conn-status.on{color:var(--green)}
 .rc .rc-copy.did{background:var(--green)}
 .lang-badge{display:inline-block;padding:4px 12px;border-radius:980px;font:600 10px/1 var(--f);letter-spacing:0.3px;color:var(--blue);background:var(--blue-bg);margin-bottom:12px;text-transform:uppercase}
 .ctx-box{padding:8px 12px;border-radius:8px;background:var(--orange-bg);color:#b36b00;font:500 11px/1.4 var(--f);margin-bottom:12px}
-.ai-btn{display:flex;align-items:center;gap:8px;margin:16px 0;padding:12px 20px;border:2px dashed var(--blue);border-radius:12px;background:var(--blue-bg);color:var(--blue);font:600 13px/1 var(--f);cursor:pointer;transition:all .15s;width:100%}
-.ai-btn:hover{background:var(--blue);color:#fff;border-style:solid}
-.ai-btn:disabled{opacity:.6;cursor:wait;border-style:dotted}
-.ai-btn svg{width:16px;height:16px;flex-shrink:0}
+.ai-btn{display:flex;align-items:center;justify-content:center;gap:10px;margin:16px 0;padding:14px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6,#a855f7);color:#fff;font:700 14px/1 var(--f);cursor:pointer;transition:all .2s;width:100%;box-shadow:0 4px 15px rgba(99,102,241,.35);letter-spacing:0.3px}
+.ai-btn:hover{background:linear-gradient(135deg,#4f46e5,#7c3aed,#9333ea);box-shadow:0 6px 20px rgba(99,102,241,.5);transform:translateY(-1px)}
+.ai-btn:disabled{opacity:.6;cursor:wait;filter:grayscale(.3)}
+.ai-btn svg{width:18px;height:18px;flex-shrink:0}
 .ai-result{margin-top:12px;padding:16px;border-radius:12px;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 20%,transparent)}
 .ai-result .rc-body{white-space:pre-wrap;font:13px/1.6 var(--f);color:var(--black);margin:8px 0}
 .ai-result .rc-copy{margin-top:10px;height:32px;padding:0 18px;border:none;border-radius:980px;font:500 12px/32px var(--f);cursor:pointer;background:var(--blue);color:var(--white);transition:all .15s}
@@ -757,29 +757,41 @@ function findTriedSolutions(msgs){
     return tried;
 }
 
+function isNewRequestInquiry(textLow){
+    return /(?:opciones|options|desarrollo|development|cfx|customiz|personali|integra|what.*can|qué.*puede|qué.*ofrece|me\s*gustar[ií]a\s*saber|like\s*to\s*know|capabilities|features|funcionalidades|cotiza|quot|proposal|propuesta)/i.test(textLow);
+}
 function matchCanned(issueLow,allTextLow,ctx,lang){
     if(!D.canned||!D.canned.length)return[];
-    const stopWords=new Set(['new','request','information','from','with','about','this','that','have','been','para','como','esta','pero','nuevo','nueva','solicitud']);
+    const stopWords=new Set(['new','request','information','from','with','about','this','that','have','been','para','como','esta','pero','nuevo','nueva','solicitud',
+        'please','could','would','should','will','need','make','sure','also','following','puede','favor','puede','debe','aseg','siguiente','favor']);
     const words=issueLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
     return D.canned.filter(cr=>{
         const title=cr.title.toLowerCase();
+        if(title.includes('new request')&&!isNewRequestInquiry(allTextLow))return false;
         const content=(cr.content_text||strip(cr.content||'')).toLowerCase();
+        const contentWords=content.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>4&&!stopWords.has(w));
+        const uniqueContent=[...new Set(contentWords)];
         const titleWords=title.replace(/[\[\]()]/g,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
         let score=0;
         for(const tw of titleWords){
             if(issueLow.includes(tw))score+=3;
             else if(allTextLow.includes(tw))score+=1;
         }
-        for(const w of words){
-            if(title.includes(w))score+=3;
-            else if(content.includes(w))score+=1;
+        let contentHits=0;
+        for(const cw of uniqueContent){
+            if(issueLow.includes(cw)){score+=2;contentHits++}
+            else if(allTextLow.includes(cw)){score+=1;contentHits++}
         }
-        if(ctx.isBRM&&title.includes('[brm]'))score+=3;
-        if(ctx.isInspection&&title.includes('[mes]'))score+=3;
+        if(contentHits>=3)score+=3;
+        for(const w of words){
+            if(content.includes(w))score+=2;
+        }
+        if(ctx.isBRM&&title.includes('[brm]'))score+=2;
+        if(ctx.isInspection&&title.includes('[mes]'))score+=2;
         if(ctx.isError&&(content.includes('error')||title.includes('error')))score+=2;
         cr._score=score;
         cr._id=cr.id;
-        return score>=8;
+        return score>=10;
     }).sort((a,b)=>b._score-a._score).slice(0,2);
 }
 
@@ -1025,11 +1037,14 @@ function replyHTML(t,c){
     const bye=sty.signoff?sty.signoff:
         (lang==='es'?'Saludos cordiales':'Best regards');
 
+    const spLink=getSPLink(t.id);
+    const spEs=spLink?'\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink:'';
+    const spEn=spLink?'\n\nPlease upload the files to the following SharePoint folder:\n'+spLink:'';
     const L={
         es:{
             thankReach:'',
             reviewed:'',
-            toInvestigate:'Para comprender mejor el problema, ¿nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?',
+            toInvestigate:'Para poder investigar el problema, ¿nos podrías compartir la siguiente información?\n1. Issue report de BRM (menú Help > Issue Report)\n2. Versión de KBR y BRM que están corriendo\n3. Capturas de pantalla del error (si aplica)'+spEs,
             screenshots:'Capturas de pantalla del error',
             logFiles:'Archivos de log de BRM',
             swVersion:'Versión de KBR que están corriendo',
@@ -1118,7 +1133,7 @@ function replyHTML(t,c){
         en:{
             thankReach:'Thank you for reaching out regarding '+subj+'.',
             reviewed:'I have reviewed your message',
-            toInvestigate:'To investigate further, could you please provide:',
+            toInvestigate:'To investigate this issue, could you please provide the following?\n1. BRM Issue Report (menu Help > Issue Report)\n2. Current KBR and BRM version\n3. Screenshots of the error (if applicable)'+spEn,
             screenshots:'Screenshots of the error',
             logFiles:'Relevant log files',
             swVersion:'Current software/BRM version',
@@ -1233,9 +1248,15 @@ function replyHTML(t,c){
 
         if(kbHits.length&&!intentBody){
             kbHits.slice(0,2).forEach(kb=>{
+                let kbBody=kb[lang];
+                if(kb.id==='issueReport'&&spLink){
+                    kbBody=lang==='es'
+                        ?'Para poder investigar el problema, ¿nos podrías compartir el issue report de BRM? (menú Help > Issue Report)\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink
+                        :'To investigate this issue, could you please share the BRM Issue Report? (menu Help > Issue Report)\n\nPlease upload the files to the following SharePoint folder:\n'+spLink;
+                }
                 R.push({g:gRec,nm:l.firstResponse,
                     why:(lang==='es'?'Detectado: ':'Detected: ')+kb.id+' → "'+ trunc(issueText,100)+'"',
-                    body:hi+',\n\n'+kb[lang]+'\n\n'+bye});
+                    body:hi+',\n\n'+kbBody+'\n\n'+bye});
             });
         }
 
@@ -1325,11 +1346,17 @@ function replyHTML(t,c){
 
         if(kbHits.length&&!mentionsDone&&!ctx.customerProvided){
             kbHits.slice(0,2).forEach(kb=>{
-                const alreadyAdded=R.some(r=>r.body.includes(kb[lang]));
+                let kbBody=kb[lang];
+                if(kb.id==='issueReport'&&spLink){
+                    kbBody=lang==='es'
+                        ?'Para poder investigar el problema, ¿nos podrías compartir el issue report de BRM? (menú Help > Issue Report)\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink
+                        :'To investigate this issue, could you please share the BRM Issue Report? (menu Help > Issue Report)\n\nPlease upload the files to the following SharePoint folder:\n'+spLink;
+                }
+                const alreadyAdded=R.some(r=>r.body.includes(kbBody));
                 if(!alreadyAdded){
                     R.push({g:gRec,nm:(lang==='es'?'Respuesta: ':'Response: ')+kb.id,
                         why:(lang==='es'?'Detectado en mensaje: ':'Detected in message: ')+kb.id+' → "'+trunc(custText,80)+'"',
-                        body:hi+',\n\n'+kb[lang]+'\n\n'+bye});
+                        body:hi+',\n\n'+kbBody+'\n\n'+bye});
                 }
             });
         }
@@ -1412,6 +1439,7 @@ function replyHTML(t,c){
         const topics=findTopics(allTextLow);
         const relevantCanned=remaining.filter(cr=>{
             const title=cr.title.toLowerCase();
+            if(title.includes('new request')&&!isNewRequestInquiry(allTextLow))return false;
             if(topics.includes('BRM/KBR')&&title.includes('[brm]'))return true;
             if((topics.includes('Inspection')||topics.includes('Export')||topics.includes('Error'))&&title.includes('[mes]'))return true;
             if(ctx.isBRM&&title.includes('[brm]'))return true;
@@ -1434,7 +1462,7 @@ function replyHTML(t,c){
         r._score=score;
     });
     R.sort((a,b)=>b._score-a._score);
-    if(R.length>5)R.length=5;
+    if(R.length>3)R.length=3;
     window._R=R;
     window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText,suggestions:R,cannedAll:D.canned||[]};
     const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
@@ -1463,7 +1491,7 @@ function replyHTML(t,c){
             +'<div style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
     }
 
-    h+='<button class="ai-btn" onclick="generateAI(\'ollama\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+    h+='<button class="ai-btn" onclick="generateAI(\'ollama\')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 2l1.5 3.5L14.5 7l-3.5 1.5L9.5 12l-1.5-3.5L4.5 7l3.5-1.5zM19 11l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5L15 14.5l2.5-1zM9.5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>'
         +(lang==='es'?'Generar respuesta con IA':'Generate reply with AI')+'</button>'
         +'<div id="ai-out"></div>';
 
@@ -1569,33 +1597,15 @@ function cp(i,b){openFd();navigator.clipboard.writeText(window._R[i].body).then(
 function cpText(txt,b){openFd();navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
 
 function aiPrompt(rc,extraCtx){
-    const thread=rc.m.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
+    const recent=rc.m.slice(-10);
+    const thread=recent.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
 
     const kbHits=matchKB(rc.issueText,rc.ctx.triedSolutions||new Set());
-    const kbSection=kbHits.length?kbHits.map(k=>'- '+k.id+': '+k[rc.lang]).join('\n'):'(none matched)';
-
-    const cannedSection=rc.cannedAll.filter(cr=>{
-        const title=cr.title.toLowerCase();
-        return title.includes('[mes]')||title.includes('[brm]');
-    }).map(cr=>('- "'+cr.title+'"')).join('\n');
+    const kbSection=kbHits.length?kbHits.map(k=>'- '+k.id+': '+k[rc.lang]).join('\n'):'';
 
     const sugSection=rc.suggestions.slice(0,3).map(s=>'- ['+s.nm+']: '+s.body.substring(0,200)).join('\n');
 
-    const triedList=rc.ctx.triedSolutions&&rc.ctx.triedSolutions.size>0?Array.from(rc.ctx.triedSolutions).join(', '):'none';
-
-    const ctxFlags=[];
-    if(rc.ctx.isError)ctxFlags.push('ERROR reported');
-    if(rc.ctx.isUrgent)ctxFlags.push('URGENT/line down');
-    if(rc.ctx.isBRM)ctxFlags.push('BRM/KBR related');
-    if(rc.ctx.isInspection)ctxFlags.push('Inspection/AOI/SPI');
-    if(rc.ctx.isQuote)ctxFlags.push('Quotation request');
-    if(rc.ctx.isScheduling)ctxFlags.push('Scheduling session');
-    if(rc.ctx.hadRemoteSession)ctxFlags.push('Had remote session before');
-    if(rc.ctx.hasLogs)ctxFlags.push('Customer shared logs');
-    if(rc.ctx.hasScreenshot)ctxFlags.push('Customer shared screenshots');
-    if(rc.ctx.agentAskedFor)ctxFlags.push('Agent previously asked for: '+rc.ctx.agentAskedFor);
-    if(rc.ctx.customerProvided)ctxFlags.push('Customer provided: '+rc.ctx.customerProvided);
-    if(rc.ctx.pendingAction)ctxFlags.push('Agent promised: '+rc.ctx.pendingAction);
+    const triedList=rc.ctx.triedSolutions&&rc.ctx.triedSolutions.size>0?Array.from(rc.ctx.triedSolutions).join(', '):'';
 
     const esL=rc.lang==='es';
 
@@ -1607,157 +1617,115 @@ function aiPrompt(rc,extraCtx){
 
     let action='';
     if(!lastAgent){
-        if(rc.ctx.isUrgent)action=esL?'Pedir credenciales de TeamViewer para sesión remota urgente':'Ask for TeamViewer credentials for urgent remote session';
-        else if(rc.ctx.isError)action=esL?'Pedir logs de BRM con el manual adjunto':'Ask for BRM logs with attached manual';
-        else if(rc.ctx.isQuote)action=esL?'Confirmar recibido y dar timeline para cotización':'Acknowledge and give timeline for quote';
-        else action=esL?'Responder al requerimiento del cliente':'Respond to the customer request';
+        if(rc.ctx.isUrgent)action='Ask for TeamViewer credentials for urgent remote session';
+        else if(rc.ctx.isError)action='Ask for BRM logs with attached manual';
+        else if(rc.ctx.isQuote)action='Acknowledge and give timeline for quote';
+        else action='Respond to the customer request';
     }else if(lastMsg&&lastMsg.f==='Customer'){
         const ct=lastCust?cleanEmailBody(lastCust.t).toLowerCase():'';
         if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed/i))
-            action=esL?'Agradecer confirmación y ofrecer cerrar el ticket':'Thank them and offer to close the ticket';
+            action='Thank them and offer to close the ticket';
         else if(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)/i))
-            action=esL?'Acusar recibo de los archivos y decir que los revisarás':'Acknowledge files received, say you will review';
+            action='Acknowledge files received, say you will review';
         else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña/i))
-            action=esL?'Confirmar recepción de credenciales y que te conectarás':'Confirm credentials received, will connect';
+            action='Confirm credentials received, will connect';
         else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same/i))
-            action=esL?'El problema persiste, sugerir sesión remota':'Problem persists, suggest remote session';
-        else action=esL?'Continuar la conversación respondiendo lo que el cliente dijo':'Continue conversation responding to what customer said';
+            action='Problem persists, suggest remote session';
+        else if(ct.match(/status|update|avance|estado|progress|follow/i))
+            action='Provide status update on pending work';
+        else if(ct.match(/question|pregunta|confirm|can you|could you|podrías|puedes/i))
+            action='Answer the customer question directly';
+        else action='Respond to what the customer said';
     }else{
-        action=rc.ctx.pendingAction?(esL?'Dar seguimiento a: ':'Follow up on: ')+rc.ctx.pendingAction
-            :(esL?'Preguntar si el problema se resolvió':'Ask if the issue is resolved');
+        action=rc.ctx.pendingAction?'Follow up on: '+rc.ctx.pendingAction
+            :'Ask if the issue is resolved';
     }
 
-    const ctxSection=ctxFlags.length?'\nSituation flags: '+ctxFlags.join(', '):'';
-
     const sys=esL
-?`# ROL
-Eres un agente de soporte técnico del equipo KYA MES en Koh Young Technology. Tu trabajo es responder tickets de soporte sobre el software BRM (Business Rules Management) para máquinas de inspección AOI y SPI.
+?`Eres agente de soporte del equipo KYA MES en Koh Young Technology (software BRM para máquinas AOI/SPI).
 
-# FORMATO DE SALIDA
-Escribe ÚNICAMENTE el cuerpo del email. Nada más.
+FORMATO: Escribe SOLO el email.
 - Empieza con: ${rc.hi},
-- Cuerpo: 2-4 oraciones máximo. Directo y amigable.
+- 2-4 oraciones. Directo y amigable. Tuteo ("tú").
 - Termina con: ${rc.bye}
-- DETENTE inmediatamente después de "${rc.bye}". No escribas NADA después.
+- NADA después de "${rc.bye}".
 
-# REGLAS ESTRICTAS
-- Idioma: ESPAÑOL, tuteo (informal, "tú")
-- NO repitas información que el cliente ya proporcionó
-- NO inventes soluciones técnicas que no estén en la sección de SOLUCIONES DISPONIBLES
-- Si no hay solución clara, ofrece revisar o agendar sesión remota
-- PROHIBIDO usar: "Estimado/a", "Le informo", "Me permito", "Quedo al pendiente", "Quedamos atentos", "Buen día", "Espero que te encuentres bien"
+REGLAS:
+- ESPAÑOL solamente
+- Responde SOLO al último mensaje del cliente
+- NO repitas lo que el cliente ya dijo
+- NO inventes soluciones — si no sabes, ofrece revisar o sesión remota
+- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien"
 
-# SOLUCIONES DISPONIBLES
-Usa estas frases EXACTAS cuando aplique:
+FRASES ÚTILES:
 - Pedir logs: "¿Nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?"
 - Sesión remota: "¿Me puedes compartir las credenciales de TeamViewer?"
-- Entregar archivo: "Adjunto encontrarás [X]. Por favor sigue las instrucciones del manual adjunto."
-- Revisar algo: "Lo revisaré y te doy seguimiento."
-- Pedir versión: "Revisaré cuál es la última versión disponible y te la compartiré por este medio."
-- Problema resuelto: "Me da gusto saber que se resolvió. Procederé a cerrar este ticket."
-- Socket/conexión: verificar firewall, servicio remoto corriendo, compartir configuración del socket
-- Base de datos: verificar accesibilidad del servidor, credenciales correctas, connection string
-- Barcode: verificar checkbox "Use MES" en AOI GUI, formato de barcode en BRM
-- Resultado incorrecto: pedir XML de inspección y captura del resultado
-- Instalación KBR: File > Load KBR, seleccionar archivo, verificar configuración
-- Licencia: enviar licencia con manual de activación
-- Desarrollo: confirmar recibido, revisar requerimientos, dar estimado de tiempo
-- Cerrar ticket: "De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos nuevamente a nuestro correo oficial de soporte kya_support@kohyoung.com."
+- Revisar: "Lo revisaré y te doy seguimiento."
+- Resuelto: "Me da gusto saber que se resolvió. Procederé a cerrar este ticket."
 - Seguimiento: "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte de nuestra parte?"
-- Post sesión remota: "Durante la sesión remota se identificó [problema] y se realizaron los ajustes necesarios. ¿Hay algo más en lo que podamos ayudarte?"
-- Issue report pesado: "Usa el siguiente link para hacernos llegar el issue report: https://fromsmash.com"
-- Verificar configuración: "¿Podrías validar que la siguiente configuración está correctamente seteada?"
-- Conexión fallida: "No me fue posible realizar la conexión. ¿Podrías validar que la PC tiene conexión a internet?"
-- Disponibilidad: "Estaré disponible para conectarnos. Por favor comparte las credenciales de TeamViewer cuando estén listos."
-- CFX/Hermes: verificar URI del plugin, verificar firewall desactivado en la máquina
-- Timeout: "Se identificó que el timeout no es suficiente. Incrementaremos los tiempos para dar margen al procesamiento."
-- Retención de logs: "Verifica el valor en BRM > Log > Data Retention Period. BRM se encarga de borrar sus propios logs."
-- Confirmar recibido: "Recibido, muchas gracias."
-- Preguntar si hay más: "¿Hay algo más en lo que podamos ayudarte?"`
+- Cerrar: "De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos a kya_support@kohyoung.com."
+- Confirmar: "Recibido, muchas gracias."
+- Entregar: "Adjunto encontrarás [X]. Por favor sigue las instrucciones del manual adjunto."
+- Disponibilidad: "Estaré disponible para conectarnos. Por favor comparte las credenciales de TeamViewer cuando estén listos."`
 
-:`# ROLE
-You are a technical support agent for the KYA MES team at Koh Young Technology. You respond to support tickets about BRM (Business Rules Management) software for AOI and SPI inspection machines.
+:`You are a support agent for the KYA MES team at Koh Young Technology (BRM software for AOI/SPI inspection machines).
 
-# OUTPUT FORMAT
-Write ONLY the email body. Nothing else.
+FORMAT: Write ONLY the email body.
 - Start with: ${rc.hi},
-- Body: 2-4 sentences max. Direct and friendly.
+- 2-4 sentences. Direct and friendly.
 - End with: ${rc.bye}
-- STOP immediately after "${rc.bye}". Write NOTHING after it.
+- NOTHING after "${rc.bye}".
 
-# STRICT RULES
-- Language: ENGLISH only
-- Do NOT repeat information the customer already provided
-- Do NOT invent technical solutions not listed in AVAILABLE SOLUTIONS
-- If no clear solution, offer to review or schedule a remote session
-- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I hope this message finds you well"
+RULES:
+- ENGLISH only
+- Respond ONLY to the customer's last message
+- Do NOT repeat what the customer already said
+- Do NOT invent solutions — if unsure, offer to review or schedule remote session
+- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out"
 
-# AVAILABLE SOLUTIONS
-Use these EXACT phrases when applicable:
+USEFUL PHRASES:
 - Request logs: "Could you please share the BRM logs following the instructions in the attached manual?"
 - Remote session: "Could you share the TeamViewer credentials so we can take a look?"
-- Deliver file: "Please find attached [X]. Follow the instructions in the attached manual."
-- Review something: "I will review it and follow up."
-- Version request: "I will check which is the latest version available and share it with you."
-- Issue resolved: "Glad to hear it's resolved. I will proceed to close this ticket."
-- Socket/connection: verify firewall, remote service running, share socket configuration
-- Database: verify server accessibility, correct credentials, connection string
-- Barcode: verify "Use MES" checkbox in AOI GUI, barcode format in BRM
-- Incorrect result: request inspection XML and screenshot of the result
-- KBR installation: File > Load KBR, select file, verify configuration
-- License: send license with activation manual
-- Development: confirm received, review requirements, give time estimate
-- Close ticket: "We will proceed to close this ticket now. If you ever require support in the future, feel free to reach out by sending a new email to our official support mail at kya_support@kohyoung.com."
+- Review: "I will review it and follow up."
+- Resolved: "Glad to hear it's resolved. I will proceed to close this ticket."
 - Follow up: "I am following up on this ticket. Do you still need support from our side?"
-- Post remote session: "During the remote session we identified [issue] and made the necessary adjustments. Is there anything else we can help you with?"
-- Issue report (large file): "Please use the following link to send us the issue report: https://fromsmash.com"
-- Verify config: "Could you please verify that the following configuration is properly set?"
-- Connection failed: "I was unable to connect. Could you please verify that the PC has internet access and that TeamViewer is running?"
-- Availability: "I will be available to connect. Please share the TeamViewer credentials when you are ready."
-- CFX/Hermes: verify URI in plugin is properly set, make sure firewall is turned off on that machine
-- Timeout: "We identified that the configured timeout is not sufficient. We will increase the timeout values."
-- Log retention: "Please verify the value in BRM > Log > Data Retention Period. BRM is in charge of deleting its own logs."
-- Confirm received: "Received, thank you."
-- Ask if more help needed: "Is there anything else we can help you with?"`;
+- Close: "We will proceed to close this ticket. If you need support in the future, feel free to reach out at kya_support@kohyoung.com."
+- Confirm: "Received, thank you."
+- Deliver: "Please find attached [X]. Follow the instructions in the attached manual."
+- Availability: "I will be available to connect. Please share the TeamViewer credentials when you are ready."`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
 
     let usrParts=[];
-    usrParts.push('# TICKET: #'+rc.t.id+' '+rc.t.subject);
+    usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
     usrParts.push('Customer: '+rc.firstName);
     if(rc.ctx.mainIssue)usrParts.push('Issue: '+rc.ctx.mainIssue);
-    if(ctxSection)usrParts.push(ctxSection);
     usrParts.push('');
 
-    usrParts.push('# CONVERSATION HISTORY (for context)');
+    if(rc.m.length>10)usrParts.push('(Showing last 10 of '+rc.m.length+' messages)\n');
+    usrParts.push('RECENT CONVERSATION:');
     usrParts.push(thread);
     usrParts.push('');
 
-    if(kbSection!=='(none matched)')usrParts.push('# MATCHING KB SOLUTIONS\n'+kbSection+'\n');
-    if(sugSection)usrParts.push('# SUGGESTED REPLIES (use as reference)\n'+sugSection+'\n');
-    if(triedList!=='none')usrParts.push('Do NOT suggest these (already tried): '+triedList+'\n');
-
-    usrParts.push('# CUSTOMER\'S LAST MESSAGE (respond to THIS)');
-    usrParts.push(lastCustText);
-    usrParts.push('');
+    if(kbSection)usrParts.push('KB SOLUTIONS:\n'+kbSection+'\n');
+    if(sugSection)usrParts.push('EXAMPLE REPLIES:\n'+sugSection+'\n');
+    if(triedList)usrParts.push('Already tried (do NOT suggest): '+triedList+'\n');
 
     if(extraCtx&&extraCtx.length>0){
-        usrParts.push('# YOUR INSTRUCTION (HIGHEST PRIORITY — follow this exactly)');
-        usrParts.push(extraCtx);
         if(window._aiReply){
-            usrParts.push('');
-            usrParts.push('# PREVIOUS AI REPLY (rewrite based on your instruction above)');
-            usrParts.push(window._aiReply);
+            usrParts.push('REWRITE THIS REPLY:\n'+window._aiReply);
+            usrParts.push('\nFOLLOW THIS INSTRUCTION EXACTLY:\n'+extraCtx);
+        }else{
+            usrParts.push('INSTRUCTION:\n'+extraCtx);
         }
     }else{
-        usrParts.push('# SUGGESTED ACTION');
-        usrParts.push(action);
+        usrParts.push('CUSTOMER\'S LAST MESSAGE:\n'+lastCustText);
+        usrParts.push('\nACTION: '+action);
     }
 
-    usrParts.push('');
-    usrParts.push(esL
+    usrParts.push('\n'+( esL
         ?'Escribe SOLO el email. Empieza con "'+rc.hi+'," y termina con "'+rc.bye+'". Nada más.'
-        :'Write ONLY the email. Start with "'+rc.hi+'," and end with "'+rc.bye+'". Nothing else.');
+        :'Write ONLY the email. Start with "'+rc.hi+'," end with "'+rc.bye+'". Nothing else.'));
 
     const usr=usrParts.join('\n');
     return{sys,usr};
