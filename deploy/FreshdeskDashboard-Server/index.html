@@ -225,18 +225,10 @@ nav .conn-status.on{color:var(--green)}
 .rc .rc-copy.did{background:var(--green)}
 .lang-badge{display:inline-block;padding:4px 12px;border-radius:980px;font:600 10px/1 var(--f);letter-spacing:0.3px;color:var(--blue);background:var(--blue-bg);margin-bottom:12px;text-transform:uppercase}
 .ctx-box{padding:8px 12px;border-radius:8px;background:var(--orange-bg);color:#b36b00;font:500 11px/1.4 var(--f);margin-bottom:12px}
-.ai-row{display:flex;gap:8px;margin:16px 0}
-.ai-btn{display:flex;align-items:center;gap:8px;padding:12px 16px;border:2px dashed var(--blue);border-radius:12px;background:var(--blue-bg);color:var(--blue);font:600 13px/1 var(--f);cursor:pointer;transition:all .15s;flex:1}
+.ai-btn{display:flex;align-items:center;gap:8px;margin:16px 0;padding:12px 20px;border:2px dashed var(--blue);border-radius:12px;background:var(--blue-bg);color:var(--blue);font:600 13px/1 var(--f);cursor:pointer;transition:all .15s;width:100%}
 .ai-btn:hover{background:var(--blue);color:#fff;border-style:solid}
 .ai-btn:disabled{opacity:.6;cursor:wait;border-style:dotted}
 .ai-btn svg{width:16px;height:16px;flex-shrink:0}
-.ai-btn.claude{border-color:var(--orange);background:var(--orange-bg);color:#b36b00}
-.ai-btn.claude:hover{background:var(--orange);color:#fff;border-style:solid}
-.ai-key-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-.ai-key-row input{flex:1;padding:8px 12px;border:1px solid var(--g200);border-radius:8px;font:13px var(--f)}
-.ai-key-row button{height:32px;padding:0 14px;border:none;border-radius:980px;font:500 12px/32px var(--f);cursor:pointer;background:var(--orange);color:#fff}
-.ai-key-row button:hover{opacity:.85}
-.ai-key-row .saved{font:500 11px/1 var(--f);color:var(--green)}
 .ai-result{margin-top:12px;padding:16px;border-radius:12px;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 20%,transparent)}
 .ai-result .rc-body{white-space:pre-wrap;font:13px/1.6 var(--f);color:var(--black);margin:8px 0}
 .ai-result .rc-copy{margin-top:10px;height:32px;padding:0 18px;border:none;border-radius:980px;font:500 12px/32px var(--f);cursor:pointer;background:var(--blue);color:var(--white);transition:all .15s}
@@ -726,26 +718,27 @@ function findTriedSolutions(msgs){
 
 function matchCanned(issueLow,allTextLow,ctx,lang){
     if(!D.canned||!D.canned.length)return[];
-    const words=issueLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3);
+    const stopWords=new Set(['new','request','information','from','with','about','this','that','have','been','para','como','esta','pero','nuevo','nueva','solicitud']);
+    const words=issueLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
     return D.canned.filter(cr=>{
         const title=cr.title.toLowerCase();
         const content=(cr.content_text||strip(cr.content||'')).toLowerCase();
-        const titleWords=title.replace(/[\[\]]/g,'').split(/\s+/).filter(w=>w.length>3);
+        const titleWords=title.replace(/[\[\]()]/g,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
         let score=0;
         for(const tw of titleWords){
-            if(issueLow.includes(tw))score+=2;
-            if(allTextLow.includes(tw))score+=1;
+            if(issueLow.includes(tw))score+=3;
+            else if(allTextLow.includes(tw))score+=1;
         }
         for(const w of words){
-            if(title.includes(w))score+=2;
-            if(content.includes(w))score+=1;
+            if(title.includes(w))score+=3;
+            else if(content.includes(w))score+=1;
         }
         if(ctx.isBRM&&title.includes('[brm]'))score+=3;
         if(ctx.isInspection&&title.includes('[mes]'))score+=3;
         if(ctx.isError&&(content.includes('error')||title.includes('error')))score+=2;
         cr._score=score;
         cr._id=cr.id;
-        return score>=5;
+        return score>=8;
     }).sort((a,b)=>b._score-a._score).slice(0,2);
 }
 
@@ -781,11 +774,19 @@ function cleanEmailBody(text){
         .trim();
 }
 
+function extractBody(text){
+    let t=text;
+    t=t.replace(/^(Hola|Hi|Hello|Dear|Buenos?\s*d[ií]as?|Buen d[ií]a|Estimado\/?)[\s,\w]*[,.:]\s*/i,'');
+    t=t.replace(/(Saludos?\s*(cordiales)?|Best regards|Kind regards|Regards|Quedo al pendiente|Quedamos al pendiente|Quedo atento|Atentamente|Cordialmente)[,.\s]*$/i,'');
+    return t.trim();
+}
+
 function detectLang(m,subject){
-    const custMsgs=m.filter(x=>x.f==='Customer').map(x=>cleanEmailBody(x.t));
-    const all=((subject||'')+' '+custMsgs.join(' ')).toLowerCase();
-    const esWords=(all.match(/\b(hola|gracias|buenos|estimado|buen día|por favor|saludos|adjunto|revisamos|revisaré|quedo atento|quedamos|pendiente|sesión|remota|disponibilidad|horario|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|cordial|atencion|solicitud|actualización|instalación|calibración|verificar|configuración)\b/gi)||[]).length;
-    const enWords=(all.match(/\b(hello|thank you|thanks|please|regards|hi|dear|attached|issue|machine|review|kindly|appreciate|let me know|follow up|looking forward|availability|schedule|screenshot|resolve|investigate)\b/gi)||[]).length;
+    const custMsgs=m.filter(x=>x.f==='Customer').map(x=>extractBody(cleanEmailBody(x.t)));
+    const bodies=custMsgs.join(' ').toLowerCase();
+    const all=bodies.length>20?bodies:((subject||'')+' '+bodies).toLowerCase();
+    const esWords=(all.match(/\b(gracias|por favor|adjunto|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|solicitud|actualización|instalación|calibración|verificar|configuración|revisamos|pendiente|sesión|remota|disponibilidad|horario|versión|compartir|funciona|sirve|errores|pregunta|requiere|soporte|también|correo|información|sistema|estamos|programa|proceso|datos|cambios|nuevo|nueva)\b/gi)||[]).length;
+    const enWords=(all.match(/\b(thank you|thanks|please|attached|issue|machine|review|kindly|appreciate|follow up|looking forward|availability|schedule|screenshot|resolve|investigate|version|working|error|update|install|check|would|could|should|also|about|have|need|want|with|from|this|that|were|been|will|configuration|export|file|send|share)\b/gi)||[]).length;
     if(esWords===0&&enWords===0){
         const esChars=(all.match(/[áéíóúüñ¿¡]/g)||[]).length;
         if(esChars>=2)return 'es';
@@ -1418,18 +1419,8 @@ function replyHTML(t,c){
             +'<div style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
     }
 
-    const hasKey=!!localStorage.getItem('fd_claude_key');
-    h+='<div class="ai-key-row">'
-        +'<input id="inp-claude-key" type="password" placeholder="sk-ant-..." value="'+(hasKey?'••••••••••••••••':'')+'" style="'+(hasKey?'color:var(--g400)':'')+'" onfocus="if(this.value.startsWith(\'••\')){this.value=\'\';this.style.color=\'\'}">'
-        +'<button onclick="const k=document.getElementById(\'inp-claude-key\').value.trim();if(k&&!k.startsWith(\'••\')){localStorage.setItem(\'fd_claude_key\',k);document.getElementById(\'inp-claude-key\').value=\'••••••••••••••••\';document.getElementById(\'inp-claude-key\').style.color=\'var(--g400)\';document.getElementById(\'claude-key-status\').textContent=\''+(lang==='es'?'Guardada':'Saved')+'\'}">'+(lang==='es'?'Guardar key':'Save key')+'</button>'
-        +'<span id="claude-key-status" class="saved">'+(hasKey?(lang==='es'?'Guardada':'Saved'):'')+'</span>'
-        +'</div>';
-    h+='<div class="ai-row">'
-        +'<button class="ai-btn claude" onclick="generateAI(\'claude\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
-        +'Claude</button>'
-        +'<button class="ai-btn" onclick="generateAI(\'ollama\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
-        +(lang==='es'?'IA Local (Ollama)':'Local AI (Ollama)')+'</button>'
-        +'</div>'
+    h+='<button class="ai-btn" onclick="generateAI(\'ollama\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+        +(lang==='es'?'Generar respuesta con IA':'Generate reply with AI')+'</button>'
         +'<div id="ai-out"></div>';
 
     for(const[g,items]of Object.entries(G)){

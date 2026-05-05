@@ -718,26 +718,27 @@ function findTriedSolutions(msgs){
 
 function matchCanned(issueLow,allTextLow,ctx,lang){
     if(!D.canned||!D.canned.length)return[];
-    const words=issueLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3);
+    const stopWords=new Set(['new','request','information','from','with','about','this','that','have','been','para','como','esta','pero','nuevo','nueva','solicitud']);
+    const words=issueLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
     return D.canned.filter(cr=>{
         const title=cr.title.toLowerCase();
         const content=(cr.content_text||strip(cr.content||'')).toLowerCase();
-        const titleWords=title.replace(/[\[\]]/g,'').split(/\s+/).filter(w=>w.length>3);
+        const titleWords=title.replace(/[\[\]()]/g,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
         let score=0;
         for(const tw of titleWords){
-            if(issueLow.includes(tw))score+=2;
-            if(allTextLow.includes(tw))score+=1;
+            if(issueLow.includes(tw))score+=3;
+            else if(allTextLow.includes(tw))score+=1;
         }
         for(const w of words){
-            if(title.includes(w))score+=2;
-            if(content.includes(w))score+=1;
+            if(title.includes(w))score+=3;
+            else if(content.includes(w))score+=1;
         }
         if(ctx.isBRM&&title.includes('[brm]'))score+=3;
         if(ctx.isInspection&&title.includes('[mes]'))score+=3;
         if(ctx.isError&&(content.includes('error')||title.includes('error')))score+=2;
         cr._score=score;
         cr._id=cr.id;
-        return score>=5;
+        return score>=8;
     }).sort((a,b)=>b._score-a._score).slice(0,2);
 }
 
