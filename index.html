@@ -107,10 +107,14 @@ nav .conn-status.on{color:var(--green)}
 .hdr-box{padding:20px 32px;background:var(--white);border-bottom:0.5px solid var(--g200)}
 .hdr-box h1{font:600 20px/1.35 var(--f);letter-spacing:-0.4px;color:var(--black);margin-bottom:8px}
 .hdr-box .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.hdr-box .hdr-actions{margin-top:10px}
-.btn-fd{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:980px;font:600 11px/1 var(--f);color:var(--white);background:linear-gradient(135deg,#0ea5e9,#6366f1);border:none;cursor:pointer;text-decoration:none;letter-spacing:0.2px;transition:opacity .15s}
-.btn-fd:hover{opacity:.85}
+.hdr-box .hdr-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn-fd{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:980px;font:600 11px/1 var(--f);color:var(--white);background:linear-gradient(135deg,#0ea5e9,#6366f1);border:none;cursor:pointer;text-decoration:none;letter-spacing:0.2px;transition:all .15s;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn-fd:hover{opacity:.88;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 .btn-fd svg{width:12px;height:12px;fill:currentColor}
+.btn-group{display:inline-flex;box-shadow:0 1px 3px rgba(0,0,0,.1);border-radius:980px;overflow:hidden}
+.btn-group .btn-fd{border-radius:0;box-shadow:none}
+.btn-gl{border-radius:980px 0 0 980px!important;padding-right:12px}
+.btn-gr{border-radius:0 980px 980px 0!important;padding-left:12px;border-left:1px solid rgba(255,255,255,.25)}
 .chip{
     height:22px;padding:0 9px;border-radius:980px;
     font:600 10px/22px var(--f);letter-spacing:0.2px;display:inline-flex;align-items:center;
@@ -349,29 +353,52 @@ function loadCanned(){
     }).catch(()=>{D.canned=[]});
 }
 
-async function loadAll(){
-    document.getElementById('list').innerHTML='<div class="loading-msg">Loading tickets</div>';
-    let q='"agent_id:'+D.aid+'"';
+async function fetchByStatus(st){
+    try{
+        let q='"agent_id:'+D.aid+' AND status:'+st+'"';
+        let all=[],pg=1;
+        while(true){
+            const d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);
+            const res=d.results||[];
+            all=all.concat(res);
+            if(res.length<30||pg>=10)break;
+            pg++;
+        }
+        return all;
+    }catch(e){return[]}
+}
+
+async function checkLastReply(tid){
     let all=[],pg=1;
     while(true){
-        const d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);
-        const res=d.results||[];
-        all=all.concat(res);
-        if(res.length<30||pg>=10)break;
+        const batch=await get('tickets/'+tid+'/conversations?per_page=100&page='+pg);
+        if(!batch||!batch.length)break;
+        all=all.concat(batch);
+        if(batch.length<100)break;
         pg++;
     }
-    D.allOpen=all.filter(t=>t.status!==4&&t.status!==5);
+    const pub=all.filter(c=>!c.private);
+    const last=pub.length?pub[pub.length-1]:null;
+    return last?(last.incoming!==false):true;
+}
+
+async function loadAll(){
+    document.getElementById('list').innerHTML='<div class="loading-msg">Loading tickets</div>';
+    const lists=await Promise.all([2,3,6,7,8].map(st=>fetchByStatus(st)));
+    const seen=new Set();
+    D.allOpen=[].concat(...lists).filter(t=>{if(seen.has(t.id))return false;seen.add(t.id);return true});
     document.getElementById('list').innerHTML='<div class="loading-msg">Loading details 0/'+D.allOpen.length+'</div>';
     D.lr={};
-    const cache=JSON.parse(localStorage.getItem('fd_cache2')||'{}');
+    const cache=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
     const batches=[];
     for(let i=0;i<D.allOpen.length;i+=5)batches.push(D.allOpen.slice(i,i+5));
     let done=0;
+    const ambiguous=[];
     for(const batch of batches){
         const results=await Promise.all(batch.map(t=>{
             const c=cache[t.id];
             if(c&&c.u===t.updated_at){return Promise.resolve({id:t.id,cached:true,lr:c.lr,rn:c.rn,co:c.co})}
-            return get('tickets/'+t.id+'?include=stats,requester,company').then(d=>({id:t.id,cached:false,d})).catch(()=>({id:t.id,cached:true,lr:true,rn:'Unknown',co:''}));
+            return get('tickets/'+t.id+'?include=stats,requester,company').then(d=>({id:t.id,cached:false,d})).catch(()=>({id:t.id,cached:true,lr:false,rn:'Unknown',co:''}));
         }));
         for(const r of results){
             const t=D.allOpen.find(x=>x.id===r.id);
@@ -381,16 +408,21 @@ async function loadAll(){
                 const d=r.d;
                 const rr=d.stats?d.stats.requester_responded_at:null;
                 const ar=d.stats?d.stats.agent_responded_at:null;
-                D.lr[t.id]=!ar?true:(!rr?false:new Date(rr)>new Date(ar));
+                D.lr[t.id]=(rr&&(!ar||new Date(rr)>new Date(ar)));
                 t._reqName=d.requester?d.requester.name:'Unknown';
                 t._company=d.company?d.company.name:'';
-                cache[t.id]={u:t.updated_at,lr:D.lr[t.id],rn:t._reqName,co:t._company,ar:ar};
+                if(ar&&rr&&Math.abs(new Date(rr)-new Date(ar))<120000){ambiguous.push(t.id)}
+                cache[t.id]={u:t.updated_at,lr:D.lr[t.id],rn:t._reqName,co:t._company};
             }
             done++;
         }
         document.getElementById('list').innerHTML='<div class="loading-msg">Loading details '+done+'/'+D.allOpen.length+'</div>';
     }
-    try{localStorage.setItem('fd_cache2',JSON.stringify(cache))}catch(e){}
+    if(ambiguous.length){
+        const abResults=await Promise.all(ambiguous.map(id=>checkLastReply(id).then(lr=>({id,lr}))));
+        for(const r of abResults){D.lr[r.id]=r.lr;const c=cache[r.id];if(c)c.lr=r.lr}
+    }
+    try{localStorage.setItem('fd_cache4',JSON.stringify(cache))}catch(e){}
     applyFilter();
 }
 
@@ -426,7 +458,7 @@ async function loadNewTickets(){
         let filtered=all;
 
         const noReply=[];
-        const cache=JSON.parse(localStorage.getItem('fd_cache2')||'{}');
+        const cache=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
         const batches=[];
         for(let i=0;i<filtered.length;i+=5)batches.push(filtered.slice(i,i+5));
         for(const batch of batches){
@@ -453,7 +485,7 @@ async function loadNewTickets(){
                 }
             }
         }
-        try{localStorage.setItem('fd_cache2',JSON.stringify(cache))}catch(e){}
+        try{localStorage.setItem('fd_cache4',JSON.stringify(cache))}catch(e){}
         D.newTks=noReply.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
         updateNewBadge();
     }catch(e){D.newTks=[];updateNewBadge()}
@@ -535,6 +567,12 @@ function renderRight(){
     const age=Math.floor((Date.now()-new Date(t.created_at))/864e5);
     const stale=Math.floor((Date.now()-new Date(t.updated_at))/864e5);
 
+    const spLink=getSPLink(t.id);
+    const spActions=spLink
+        ?'<span class="btn-group"><a class="btn-fd btn-gl" href="'+esc(spLink)+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>Open SharePoint Folder</a>'
+         +'<button class="btn-fd btn-gr" onclick="copySPLink('+t.id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy link</button></span>'
+        :'<button id="sp-btn-'+t.id+'" class="btn-fd" onclick="createSPFolder('+t.id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg><span id="sp-status-'+t.id+'">Generate SharePoint Folder</span></button>';
+
     document.getElementById('hdr').innerHTML=
         '<div class="hdr-box"><h1>#'+t.id+' — '+esc(t.subject||'')+'</h1>'+
         '<div class="chips">'+
@@ -544,7 +582,7 @@ function renderRight(){
         '<span class="chip chip-meta">'+age+'d old</span>'+
         '<span class="chip chip-meta">Updated '+(stale===0?'today':stale+'d ago')+'</span>'+
         '</div>'+
-        '<div class="hdr-actions"><a class="btn-fd" href="https://help.kohyoung.com/a/tickets/'+t.id+'" target="_blank" rel="noopener"><svg viewBox="0 0 16 16"><path d="M9 2h5v5l-2-2-4 4-1.5-1.5L10.5 4 9 2zM3 3h4v1.5H3.5v8h8V9H13v4.5A1.5 1.5 0 0111.5 15h-8A1.5 1.5 0 012 13.5v-8A1.5 1.5 0 013.5 4H3V3z"/></svg>Open in Freshdesk</a></div>'+
+        '<div class="hdr-actions">'+spActions+'<a class="btn-fd" href="https://help.kohyoung.com/a/tickets/'+t.id+'" target="_blank" rel="noopener"><svg viewBox="0 0 16 16"><path d="M9 2h5v5l-2-2-4 4-1.5-1.5L10.5 4 9 2zM3 3h4v1.5H3.5v8h8V9H13v4.5A1.5 1.5 0 0111.5 15h-8A1.5 1.5 0 012 13.5v-8A1.5 1.5 0 013.5 4H3V3z"/></svg>Open in Freshdesk</a></div>'+
         '</div>';
 
     document.getElementById('tab-bar').innerHTML=
@@ -782,9 +820,12 @@ function extractBody(text){
 }
 
 function detectLang(m,subject){
-    const custMsgs=m.filter(x=>x.f==='Customer').map(x=>extractBody(cleanEmailBody(x.t)));
-    const bodies=custMsgs.join(' ').toLowerCase();
-    const all=bodies.length>20?bodies:((subject||'')+' '+bodies).toLowerCase();
+    const custRaw=m.filter(x=>x.f==='Customer').map(x=>cleanEmailBody(x.t));
+    const lastCust=custRaw.length?custRaw[custRaw.length-1]:'';
+    const trimmed=lastCust.trim();
+    if(/^(hola|buenos?\s*d[ií]as?|buen d[ií]a|estimad)/i.test(trimmed))return 'es';
+    if(/^(hi|hello|good\s*(morning|afternoon|evening)|dear)/i.test(trimmed))return 'en';
+    const all=trimmed.length>20?trimmed.toLowerCase():(custRaw.join(' ').toLowerCase()||((subject||'')).toLowerCase());
     const esWords=(all.match(/\b(gracias|por favor|adjunto|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|solicitud|actualización|instalación|calibración|verificar|configuración|revisamos|pendiente|sesión|remota|disponibilidad|horario|versión|compartir|funciona|sirve|errores|pregunta|requiere|soporte|también|correo|información|sistema|estamos|programa|proceso|datos|cambios|nuevo|nueva)\b/gi)||[]).length;
     const enWords=(all.match(/\b(thank you|thanks|please|attached|issue|machine|review|kindly|appreciate|follow up|looking forward|availability|schedule|screenshot|resolve|investigate|version|working|error|update|install|check|would|could|should|also|about|have|need|want|with|from|this|that|were|been|will|configuration|export|file|send|share)\b/gi)||[]).length;
     if(esWords===0&&enWords===0){
@@ -1415,7 +1456,7 @@ function replyHTML(t,c){
         h+='<div style="margin-bottom:14px;padding:12px;border-radius:10px;background:'+bg+';border-left:3px solid '+clr+'">'
             +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
             +'<span style="font:600 11px/1 var(--f);color:'+clr+';text-transform:uppercase">'+(lang==='es'?'Último mensaje — ':'Last message — ')+esc(lbl)+'</span>'
-            +'<span style="font:11px var(--f);color:var(--g400)">'+timeAgo(lastMsg.d)+'</span></div>'
+            +'<span style="font:11px var(--f);color:var(--g400)">'+ago(new Date(lastMsg.d))+' ago'+'</span></div>'
             +'<div style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
     }
 
@@ -1677,31 +1718,44 @@ Use these EXACT phrases when applicable:
 - Confirm received: "Received, thank you."
 - Ask if more help needed: "Is there anything else we can help you with?"`;
 
+    const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
+
     let usrParts=[];
-    usrParts.push('# TICKET INFO');
-    usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
-    usrParts.push('Customer name: '+rc.firstName);
-    if(rc.ctx.mainIssue)usrParts.push('Main issue: '+rc.ctx.mainIssue);
+    usrParts.push('# TICKET: #'+rc.t.id+' '+rc.t.subject);
+    usrParts.push('Customer: '+rc.firstName);
+    if(rc.ctx.mainIssue)usrParts.push('Issue: '+rc.ctx.mainIssue);
     if(ctxSection)usrParts.push(ctxSection);
     usrParts.push('');
-    if(extraCtx){
-        usrParts.push('# INSTRUCTION (HIGHEST PRIORITY)');
-        usrParts.push(extraCtx);
-        usrParts.push('(Auto-suggested action for reference: '+action+')');
-    }else{
-        usrParts.push('# ACTION TO TAKE');
-        usrParts.push(action);
-    }
-    if(triedList!=='none')usrParts.push('\nDo NOT suggest these (already tried): '+triedList);
-    usrParts.push('');
-    if(kbSection!=='(none matched)')usrParts.push('# MATCHING KB SOLUTIONS\n'+kbSection+'\n');
-    if(sugSection)usrParts.push('# SUGGESTED REPLIES (use as reference)\n'+sugSection+'\n');
-    usrParts.push('# EMAIL THREAD (oldest to newest)');
+
+    usrParts.push('# CONVERSATION HISTORY (for context)');
     usrParts.push(thread);
     usrParts.push('');
+
+    if(kbSection!=='(none matched)')usrParts.push('# MATCHING KB SOLUTIONS\n'+kbSection+'\n');
+    if(sugSection)usrParts.push('# SUGGESTED REPLIES (use as reference)\n'+sugSection+'\n');
+    if(triedList!=='none')usrParts.push('Do NOT suggest these (already tried): '+triedList+'\n');
+
+    usrParts.push('# CUSTOMER\'S LAST MESSAGE (respond to THIS)');
+    usrParts.push(lastCustText);
+    usrParts.push('');
+
+    if(extraCtx&&extraCtx.length>0){
+        usrParts.push('# YOUR INSTRUCTION (HIGHEST PRIORITY — follow this exactly)');
+        usrParts.push(extraCtx);
+        if(window._aiReply){
+            usrParts.push('');
+            usrParts.push('# PREVIOUS AI REPLY (rewrite based on your instruction above)');
+            usrParts.push(window._aiReply);
+        }
+    }else{
+        usrParts.push('# SUGGESTED ACTION');
+        usrParts.push(action);
+    }
+
+    usrParts.push('');
     usrParts.push(esL
-        ?'Escribe SOLO el email. Empieza con "'+rc.hi+'," y termina con "'+rc.bye+'". No escribas nada más.'
-        :'Write ONLY the email. Start with "'+rc.hi+'," and end with "'+rc.bye+'". Write nothing else.');
+        ?'Escribe SOLO el email. Empieza con "'+rc.hi+'," y termina con "'+rc.bye+'". Nada más.'
+        :'Write ONLY the email. Start with "'+rc.hi+'," and end with "'+rc.bye+'". Nothing else.');
 
     const usr=usrParts.join('\n');
     return{sys,usr};
@@ -1723,8 +1777,7 @@ function cleanAIReply(text){
 }
 
 async function tryOllama(sys,usr){
-    const ollamaHost=location.hostname==='localhost'||location.hostname==='127.0.0.1'?'localhost':location.hostname;
-    const resp=await fetch('http://'+ollamaHost+':11434/api/chat',{
+    const resp=await fetch('/ollama',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,options:{temperature:0.4,num_predict:500,top_p:0.9,repeat_penalty:1.1}})
@@ -1736,23 +1789,6 @@ async function tryOllama(sys,usr){
     return{reply,provider:'Ollama (Qwen 2.5 7B)'};
 }
 
-async function tryClaude(sys,usr,apiKey){
-    const resp=await fetch('/claude',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({apiKey:apiKey,messages:[{role:'user',content:usr}],system:sys})
-    });
-    if(!resp.ok){
-        if(resp.status===401){localStorage.removeItem('fd_claude_key');throw new Error('Invalid API key')}
-        const err=await resp.json().catch(()=>({}));
-        throw new Error(err.error&&err.error.message||'API error '+resp.status);
-    }
-    const data=await resp.json();
-    let reply=data.content&&data.content[0]?data.content[0].text:'';
-    reply=cleanAIReply(reply);
-    return{reply,provider:'Claude Haiku'};
-}
-
 async function generateAI(provider,extraCtx){
     const rc=window._replyCtx;if(!rc)return;
     const out=document.getElementById('ai-out');
@@ -1762,38 +1798,24 @@ async function generateAI(provider,extraCtx){
     out.innerHTML='<div class="loading-msg">'+(esL?'Generando respuesta':'Generating reply')+'</div>';
 
     if(!extraCtx){const el=document.getElementById('ai-extra');if(el)extraCtx=el.value.trim()}
-    window._lastAIProvider=provider;
     const{sys,usr}=aiPrompt(rc,extraCtx||'');
     let result=null;
 
-    if(provider==='claude'){
-        const aKey=localStorage.getItem('fd_claude_key')||'';
-        if(!aKey){
-            out.innerHTML='<div class="ctx-box">'+(esL?'Ingresa tu API key de Claude arriba y presiona "Guardar key" primero.':'Enter your Claude API key above and press "Save key" first.')+'</div>';
-            btns.forEach(b=>{b.disabled=false});return;
-        }
-        try{result=await tryClaude(sys,usr,aKey)}catch(e){
-            out.innerHTML='<div class="ctx-box">Claude API error: '+esc(e.message)+'</div>';
-            btns.forEach(b=>{b.disabled=false});return;
-        }
-    }else{
-        try{result=await tryOllama(sys,usr)}catch(e){
-            out.innerHTML='<div class="ctx-box">'+(esL?'Ollama no disponible. Asegúrate de que esté corriendo.':'Ollama not available. Make sure it is running.')+'</div>';
-            btns.forEach(b=>{b.disabled=false});return;
-        }
+    try{result=await tryOllama(sys,usr)}catch(e){
+        out.innerHTML='<div class="ctx-box">'+(esL?'Ollama no disponible. Asegúrate de que esté corriendo.':'Ollama not available. Make sure it is running.')+'</div>';
+        btns.forEach(b=>{b.disabled=false});return;
     }
 
     if(result){
         window._aiReply=result.reply;
-        const provClr=provider==='claude'?'var(--orange)':'var(--blue)';
-        out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+provClr+'" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg><span style="font:600 12px/1 var(--f);color:'+provClr+'">'+esc(result.provider)+'</span></div>'
+        out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg><span style="font:600 12px/1 var(--f);color:var(--blue)">'+esc(result.provider)+'</span></div>'
             +'<div class="rc-body open" style="max-height:none">'+esc(result.reply)+'</div>'
             +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
             +'<button class="rc-copy" onclick="cpText(window._aiReply,this)">Copy to clipboard</button>'
             +'</div>'
             +'<div style="margin-top:12px;display:flex;gap:8px;align-items:start">'
             +'<input id="ai-extra" type="text" placeholder="'+(esL?'Ej: dile que le vamos a mandar la versión por correo':'E.g. tell them we will send the version by email')+'" style="flex:1;padding:8px 12px;border:1px solid var(--g200);border-radius:8px;font:13px var(--f)">'
-            +'<button class="rc-copy" onclick="generateAI(window._lastAIProvider,document.getElementById(\'ai-extra\').value.trim())" style="white-space:nowrap">'+(esL?'Regenerar':'Regenerate')+'</button>'
+            +'<button class="rc-copy" onclick="generateAI(\'ollama\',document.getElementById(\'ai-extra\').value.trim())" style="white-space:nowrap">'+(esL?'Regenerar':'Regenerate')+'</button>'
             +'</div></div>';
     }
     btns.forEach(b=>{b.disabled=false});
@@ -1852,18 +1874,79 @@ async function doSearch(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
-function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache2');loadNewTickets();load()}
+function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache4');loadNewTickets();load()}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
 
 /* =============== UTILS =============== */
 function st(m,ok){const e=document.getElementById('conn-status');e.textContent=m;e.className='conn-status'+(ok?' on':'')}
-function timeAgo(d){if(!d)return'';const s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function strip(h){const d=document.createElement('div');d.innerHTML=h;return d.textContent||''}
 function trunc(s,n){return s&&s.length>n?s.substring(0,n)+'…':s||''}
 function ago(d){const s=Math.floor((Date.now()-d)/1000);if(s<60)return'now';if(s<3600)return Math.floor(s/60)+'m';if(s<86400)return Math.floor(s/3600)+'h';return Math.floor(s/86400)+'d'}
 function safe(h){const d=document.createElement('div');d.innerHTML=h;d.querySelectorAll('script,style,iframe,object,embed,form,input').forEach(e=>e.remove());d.querySelectorAll('*').forEach(e=>{for(const a of[...e.attributes])if(a.name.startsWith('on'))e.removeAttribute(a.name)});return d.innerHTML}
+
+/* =============== SHAREPOINT =============== */
+function getSPLink(ticketId){
+    try{const d=JSON.parse(localStorage.getItem('fd_sp_links')||'{}');return d[ticketId]||null}catch(e){return null}
+}
+function saveSPLink(ticketId,link){
+    try{const d=JSON.parse(localStorage.getItem('fd_sp_links')||'{}');d[ticketId]=link;localStorage.setItem('fd_sp_links',JSON.stringify(d))}catch(e){}
+}
+function copySPLink(ticketId){
+    const link=getSPLink(ticketId);if(!link)return;
+    try{navigator.clipboard.writeText(link)}catch(e){
+        const ta=document.createElement('textarea');ta.value=link;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    }
+    const btn=event.target;btn.textContent='Copied!';setTimeout(()=>{btn.textContent='Copy link'},1500);
+}
+function extractTicketEmails(){
+    const exclude=new Set(['kya_support@kohyoung.com','kohyoungcomkya_support@kyexpert.freshdesk.com']);
+    const emails=new Set();
+    const t=D.cur;if(!t)return[];
+    ['cc_emails','fwd_emails','reply_cc_emails','to_emails'].forEach(f=>{(t[f]||[]).forEach(e=>emails.add(e))});
+    if(t.requester&&t.requester.email)emails.add(t.requester.email);
+    (D.cvs||[]).forEach(c=>{
+        if(c.from_email)emails.add(c.from_email);
+        ['to_emails','cc_emails','bcc_emails'].forEach(f=>{(c[f]||[]).forEach(e=>emails.add(e))});
+    });
+    const parsed=new Set();
+    emails.forEach(raw=>{const m=raw.match(/[\w.+\-]+@[\w.\-]+\.\w+/);if(m)parsed.add(m[0].toLowerCase())});
+    return[...parsed].filter(e=>!exclude.has(e)&&!e.endsWith('.freshdesk.com'));
+}
+
+async function createSPFolder(ticketId){
+    const btn=document.getElementById('sp-btn-'+ticketId);
+    const lbl=document.getElementById('sp-status-'+ticketId);
+    if(!btn)return;
+    btn.disabled=true;
+    btn.style.opacity='0.5';
+    if(lbl)lbl.textContent='Creating...';
+    try{
+        const emails=extractTicketEmails();
+        const resp=await fetch('/sharepoint',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ticketId:ticketId,emails:emails})
+        });
+        const data=await resp.json();
+        if(!resp.ok)throw new Error(data.error||'Server error '+resp.status);
+        if(data.link){
+            saveSPLink(ticketId,data.link);
+            try{await navigator.clipboard.writeText(data.link)}catch(ce){
+                const ta=document.createElement('textarea');ta.value=data.link;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+            }
+            renderRight();
+        }else{
+            if(lbl)lbl.textContent=data.created?'Created (no link)':'Done';
+        }
+    }catch(e){
+        if(lbl)lbl.textContent='Error: '+e.message;
+        btn.style.opacity='1';
+        btn.disabled=false;
+        btn.style.color='#dc2626';btn.style.borderColor='#dc2626';
+    }
+}
 
 /* =============== HEARTBEAT / SHUTDOWN =============== */
 setInterval(()=>{fetch('/heartbeat').catch(()=>{})},15000);

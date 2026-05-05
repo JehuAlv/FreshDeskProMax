@@ -3,10 +3,33 @@ import urllib.request
 import urllib.error
 import json
 import os
+import sys
 import ssl
 import base64
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 PORT = 8080
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Sharepoint'))
+import create_ticket_folder as sp
+
+_sp_config = None
+_sp_token = None
+_sp_lock = threading.Lock()
+
+def _get_sp_config():
+    global _sp_config
+    if _sp_config is None:
+        _sp_config = sp.load_config()
+    return _sp_config
+
+def _get_sp_token():
+    global _sp_token
+    with _sp_lock:
+        config = _get_sp_config()
+        _sp_token = sp.get_graph_token(config)
+    return _sp_token
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -34,38 +57,25 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith('/fd/'):
             self._proxy('POST')
-        elif self.path == '/claude':
-            self._claude()
+        elif self.path == '/ollama':
+            self._ollama()
+        elif self.path == '/sharepoint':
+            self._sharepoint()
         else:
             self.send_error(404)
 
-    def _claude(self):
+    def _ollama(self):
         length = int(self.headers.get('Content-Length', 0))
         if length == 0:
             self.send_error(400, 'Empty body')
             return
         raw = self.rfile.read(length)
-        data = json.loads(raw)
-        api_key = data.get('apiKey', '')
-        if not api_key:
-            self.send_error(400, 'Missing apiKey')
-            return
 
-        payload = json.dumps({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 1024,
-            'messages': data.get('messages', []),
-            'system': data.get('system', '')
-        }).encode()
+        req = urllib.request.Request('http://127.0.0.1:11434/api/chat', data=raw, method='POST')
+        req.add_header('Content-Type', 'application/json')
 
-        req = urllib.request.Request('https://api.anthropic.com/v1/messages', data=payload, method='POST')
-        req.add_header('x-api-key', api_key)
-        req.add_header('anthropic-version', '2023-06-01')
-        req.add_header('content-type', 'application/json')
-
-        ctx = ssl.create_default_context()
         try:
-            with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 body = resp.read()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -82,8 +92,68 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_response(502)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({'error': str(e)}).encode())
+
+    def _sharepoint(self):
+        length = int(self.headers.get('Content-Length', 0))
+        if length == 0:
+            self.send_error(400, 'Empty body')
+            return
+        raw = self.rfile.read(length)
+        data = json.loads(raw)
+        ticket_id = data.get('ticketId')
+        if not ticket_id:
+            self.send_error(400, 'Missing ticketId')
+            return
+
+        try:
+            config = _get_sp_config()
+            emails = data.get('emails', [])
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                token_future = pool.submit(_get_sp_token)
+                if not emails:
+                    fd_future = pool.submit(self._sp_fetch_emails, config, ticket_id)
+                token = token_future.result()
+                if not emails:
+                    emails = fd_future.result()
+
+            sp.ensure_folder(token, '', 'Tickets')
+            folder_id, created = sp.ensure_folder(token, 'Tickets', str(ticket_id))
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                share_future = pool.submit(sp.share_folder, token, folder_id, emails, config)
+                link_future = pool.submit(sp.get_share_link, token, folder_id)
+                succeeded, failed = share_future.result()
+                link = link_future.result()
+
+            result = {
+                'link': link or '',
+                'created': created,
+                'shared': succeeded,
+                'failed': [{'email': e, 'error': err} for e, err in failed],
+                'ticketId': ticket_id
+            }
+            body = json.dumps(result).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode())
+
+    @staticmethod
+    def _sp_fetch_emails(config, ticket_id):
+        ticket = sp.get_ticket(config['freshdesk_domain'], config['freshdesk_api_key'], ticket_id)
+        conversations = sp.get_conversations(config['freshdesk_domain'], config['freshdesk_api_key'], ticket_id)
+        return sp.extract_emails(ticket, conversations, config)
 
     def do_OPTIONS(self):
         self.send_response(200)

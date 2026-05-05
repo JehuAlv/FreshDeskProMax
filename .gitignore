@@ -2,4 +2,6 @@
 __pycache__/
 *.pyc
 *.csv
-*.txt
+Sharepoint/token_cache.json
+Sharepoint/.env
+deploy/*.zip
