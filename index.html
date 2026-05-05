@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Support Hub</title>
+<title>MES FreshdeskProMax</title>
 <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -115,6 +115,9 @@ nav .conn-status.on{color:var(--green)}
 .btn-group .btn-fd{border-radius:0;box-shadow:none}
 .btn-gl{border-radius:980px 0 0 980px!important;padding-right:12px}
 .btn-gr{border-radius:0 980px 980px 0!important;padding-left:12px;border-left:1px solid rgba(255,255,255,.25)}
+.btn-sp{background:linear-gradient(135deg,#22c55e,#16a34a);color:#1a1a1a}
+.btn-sp:hover{opacity:.88}
+.btn-group .btn-sp.btn-gr{border-left:1px solid rgba(0,0,0,.12)}
 .chip{
     height:22px;padding:0 9px;border-radius:980px;
     font:600 10px/22px var(--f);letter-spacing:0.2px;display:inline-flex;align-items:center;
@@ -250,7 +253,7 @@ nav .conn-status.on{color:var(--green)}
 <body>
 
 <nav>
-    <span class="brand">Support Hub</span>
+    <span class="brand">MES FreshdeskProMax</span>
     <span class="dot"></span>
     <input type="password" id="inp-key" placeholder="API Key">
     <button class="nbtn ghost" onclick="toggleKey()">Show</button>
@@ -569,8 +572,8 @@ function renderRight(){
 
     const spLink=getSPLink(t.id);
     const spActions=spLink
-        ?'<span class="btn-group"><a class="btn-fd btn-gl" href="'+esc(spLink)+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>Open SharePoint Folder</a>'
-         +'<button class="btn-fd btn-gr" onclick="copySPLink('+t.id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy link</button></span>'
+        ?'<span class="btn-group"><a class="btn-fd btn-sp btn-gl" href="'+esc(spLink)+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>Open SharePoint Folder</a>'
+         +'<button class="btn-fd btn-sp btn-gr" onclick="copySPLink('+t.id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy link</button></span>'
         :'<button id="sp-btn-'+t.id+'" class="btn-fd" onclick="createSPFolder('+t.id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg><span id="sp-status-'+t.id+'">Generate SharePoint Folder</span></button>';
 
     document.getElementById('hdr').innerHTML=
@@ -1561,10 +1564,9 @@ function extractContext(allLow,m,lastCust,lastAgent){
         isUrgent,triedSolutions,agentAskedFor,customerProvided};
 }
 
-function cp(i,b){var w=fdWindow();navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500);fdNavigate(w)})}
-function cpText(txt,b){var w=fdWindow();navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500);fdNavigate(w)})}
-function fdWindow(){if(D.dom&&D.cur&&D.cur.id)return window.open('','_blank');return null}
-function fdNavigate(w){if(w&&D.dom&&D.cur&&D.cur.id)w.location='https://'+D.dom+'/a/tickets/'+D.cur.id}
+function openFd(){if(D.dom&&D.cur&&D.cur.id)window.open('https://'+D.dom+'/a/tickets/'+D.cur.id,'_blank')}
+function cp(i,b){openFd();navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
+function cpText(txt,b){openFd();navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
 
 function aiPrompt(rc,extraCtx){
     const thread=rc.m.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
