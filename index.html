@@ -1726,12 +1726,14 @@ function aiPrompt(rc,extraCtx){
         else action='Respond to the customer request. If unclear, ask specific clarifying questions (serial number, machine type, what behavior they expect).';
     }else if(lastMsg&&lastMsg.f==='Customer'){
         const ct=lastCust?cleanEmailBody(lastCust.t).toLowerCase():'';
-        if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good/i))
+        if(ct.match(/ya.*reuni[oó]n|en la reuni[oó]n|ya.*conectad|ready.*connect|in the meeting|joined.*meeting|ya.*sesión|in the session|ya.*call|on the call|listo para conect|ready for.*session|estoy.*reuni[oó]n|estoy.*sesión|ya.*listo|me encuentro.*reuni[oó]n/i))
+            action='Customer is ready/waiting in a meeting or remote session. Reply BRIEFLY: say you are connecting now. Example: "En un momento me conecto." / "I will connect shortly."';
+        else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good/i))
             action='Thank them briefly. Offer to close the ticket. Use: "Procederé a cerrar este ticket" / "I will proceed to close this ticket"';
-        else if(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)|sharing/i)||hasImages)
-            action='Customer shared files/images. Say "Gracias por compartir la información, revisaré lo enviado y te doy seguimiento." / "Thank you for sharing, I will review and follow up."';
         else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña|anydesk/i))
             action='Customer shared remote credentials. Confirm receipt and say you will connect shortly.';
+        else if(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)|sharing/i)||hasImages)
+            action='Customer shared files/images. Say "Gracias por compartir la información, revisaré lo enviado y te doy seguimiento." / "Thank you for sharing, I will review and follow up."';
         else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same|mismo/i))
             action='Problem persists. Suggest remote session: ask for TeamViewer credentials, or ask for updated Issue Report.';
         else if(ct.match(/done|listo|installed|instalé|ya.*cargué|applied|apliqué|loaded/i))
@@ -1740,7 +1742,7 @@ function aiPrompt(rc,extraCtx){
             action='Customer asks for update. Provide honest status or say you are reviewing and will follow up.';
         else if(ct.match(/question|pregunta|can you|could you|podrías|puedes|es posible|is it possible/i))
             action='Answer the customer question directly. If you do not know, say you will check and follow up.';
-        else action='Respond to what the customer said. Be specific. If they describe a problem, ask for: 1) Serial number 2) When it started 3) Issue Report.';
+        else action='Respond to what the customer said. Read the conversation context carefully. Do NOT ask for Issue Report or serial number unless the customer is reporting a NEW problem.';
     }else{
         action=rc.ctx.pendingAction?'Follow up on: '+rc.ctx.pendingAction
             :'Ask if the issue is resolved or if they need further assistance.';
@@ -1784,7 +1786,8 @@ FRASES REALES DEL EQUIPO (usa estas, no inventes):
 - "¿Podrías validar que la siguiente configuración está correctamente seteada?"
 - "Es necesario conectarnos para verificar. ¿Qué día les es más favorable?"
 - Desarrollo: "Confirmo de recibido. Esperamos tenerlo listo en [tiempo], una vez terminado se compartirá por este medio."
-- Si archivo pesado: "Usa el siguiente link para hacernos llegar el issue report: https://fromsmash.com"`
+- Si archivo pesado: "Usa el siguiente link para hacernos llegar el issue report: https://fromsmash.com"
+- Reunión/sesión: "En un momento me conecto." o "Perfecto, en un momento estoy con ustedes."`
 
 :`You are a support agent for the KYA MES team at Koh Young Technology (BRM software for AOI/SPI inspection machines).
 
@@ -1817,7 +1820,8 @@ REAL TEAM PHRASES (use these, do not invent):
 - "Could you please verify that the configuration is properly set?"
 - "We need to connect to verify. When would be a good time for a remote session?"
 - Development: "Confirmed received. We expect to have it ready in [timeframe], once completed we will share it here."
-- Large file: "Please use https://fromsmash.com to send us the issue report."`;
+- Large file: "Please use https://fromsmash.com to send us the issue report."
+- Meeting/session: "I will connect shortly." or "Sounds good, connecting now."`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
 
