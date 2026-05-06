@@ -5,19 +5,11 @@ title Freshdesk Dashboard - Starting...
 set "DIR=%~dp0"
 set "DIR=%DIR:~0,-1%"
 
-:: Kill previous instances
-taskkill /f /im ollama.exe >nul 2>&1
-for /f "tokens=2" %%p in ('netstat -ano ^| findstr ":8080.*LISTENING" 2^>nul') do taskkill /f /pid %%p >nul 2>&1
+:: Start proxy (it handles killing previous instances and starting Ollama)
+start "" /min cmd /c "cd /d "%DIR%" && python proxy.py"
 
-:: Small delay for ports to clear
-timeout /t 2 /nobreak >nul
-
-:: Set Ollama env for this session
-set "OLLAMA_HOST=0.0.0.0"
-set "OLLAMA_ORIGINS=*"
-
-:: Launch watchdog (handles starting both proxy and ollama)
-start "" /min powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "%DIR%\watchdog.ps1"
+:: Wait for proxy to be ready
+timeout /t 5 /nobreak >nul
 
 echo ============================================
 echo   Freshdesk Dashboard - Server Running

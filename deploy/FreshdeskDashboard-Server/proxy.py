@@ -6,10 +6,13 @@ import os
 import sys
 import ssl
 import base64
+import subprocess
+import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
 PORT = 8080
+MODEL = 'qwen2.5:7b'
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Sharepoint'))
 import create_ticket_folder as sp
@@ -30,6 +33,39 @@ def _get_sp_token():
         config = _get_sp_config()
         _sp_token = sp.get_graph_token(config)
     return _sp_token
+
+def _is_cuda_error(body):
+    try:
+        msg = json.loads(body).get('error', '').lower()
+    except Exception:
+        msg = body.decode('utf-8', errors='ignore').lower()
+    return 'cuda' in msg or 'out of memory' in msg or 'gpu' in msg
+
+def _ollama_is_alive():
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:11434/api/tags', timeout=5):
+            return True
+    except Exception:
+        return False
+
+def _ensure_ollama():
+    if _ollama_is_alive():
+        return True
+    print('[ollama] Not running, starting...')
+    subprocess.Popen(['ollama', 'serve'], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW)
+    for _ in range(10):
+        time.sleep(2)
+        if _ollama_is_alive():
+            print('[ollama] Started successfully')
+            return True
+    print('[ollama] Start timeout')
+    return False
+
+def _restart_ollama():
+    subprocess.run(['taskkill', '/F', '/IM', 'ollama.exe'], capture_output=True)
+    subprocess.run(['taskkill', '/F', '/IM', 'ollama app.exe'], capture_output=True)
+    time.sleep(3)
+    return _ensure_ollama()
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -70,31 +106,45 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(400, 'Empty body')
             return
         raw = self.rfile.read(length)
+        t0 = time.time()
 
-        req = urllib.request.Request('http://127.0.0.1:11434/api/chat', data=raw, method='POST')
-        req.add_header('Content-Type', 'application/json')
-
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                body = resp.read()
-                self.send_response(200)
+        for attempt in range(2):
+            req = urllib.request.Request('http://127.0.0.1:11434/api/chat', data=raw, method='POST')
+            req.add_header('Content-Type', 'application/json')
+            try:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    body = resp.read()
+                    elapsed = time.time() - t0
+                    print('[ollama] Response in %.1fs' % elapsed)
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+            except urllib.error.HTTPError as e:
+                body = e.read()
+                if attempt == 0 and _is_cuda_error(body):
+                    print('[ollama] CUDA error detected, restarting Ollama...')
+                    _restart_ollama()
+                    continue
+                self.send_response(e.code)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(body)
-        except urllib.error.HTTPError as e:
-            body = e.read()
-            self.send_response(e.code)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(body)
-        except Exception as e:
-            self.send_response(502)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({'error': str(e)}).encode())
+                return
+            except Exception as e:
+                if attempt == 0 and not _ollama_is_alive():
+                    print('[ollama] Connection error, starting Ollama...')
+                    _ensure_ollama()
+                    continue
+                self.send_response(502)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': str(e)}).encode())
+                return
 
     def _sharepoint(self):
         length = int(self.headers.get('Content-Length', 0))
@@ -206,6 +256,40 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({'error': str(e)}).encode())
 
+def _preload_model():
+    _ensure_ollama()
+    try:
+        req = urllib.request.Request(
+            'http://127.0.0.1:11434/api/chat',
+            data=json.dumps({'model': MODEL, 'messages': [], 'keep_alive': -1}).encode(),
+            method='POST'
+        )
+        req.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(req, timeout=120):
+            pass
+        print('[ollama] Model preloaded into VRAM')
+    except Exception as e:
+        print('[ollama] Preload failed: ' + str(e))
+
+def _kill_previous():
+    try:
+        out = subprocess.check_output(['netstat', '-ano'], text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        pids = set()
+        for line in out.splitlines():
+            if (':%d ' % PORT in line or ':%d\t' % PORT in line) and 'LISTENING' in line:
+                pid = line.strip().split()[-1]
+                if pid.isdigit() and int(pid) != os.getpid():
+                    pids.add(pid)
+        for pid in pids:
+            subprocess.run(['taskkill', '/F', '/PID', pid], capture_output=True)
+        if pids:
+            print('[proxy] Killed %d previous instance(s)' % len(pids))
+            time.sleep(1)
+    except Exception:
+        pass
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+_kill_previous()
+threading.Thread(target=_preload_model, daemon=True).start()
 server = http.server.HTTPServer(('0.0.0.0', PORT), ProxyHandler)
 server.serve_forever()

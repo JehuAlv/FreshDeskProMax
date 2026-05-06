@@ -1796,7 +1796,7 @@ async function tryOllama(sys,usr){
     const resp=await fetch('/ollama',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,options:{temperature:0.4,num_predict:500,top_p:0.9,repeat_penalty:1.1}})
+        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.4,num_predict:500,num_ctx:4096,top_p:0.9,repeat_penalty:1.1}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
     const data=await resp.json();

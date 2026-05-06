@@ -24,7 +24,7 @@ set "INSTALL_DIR=%~dp0"
 set "INSTALL_DIR=%INSTALL_DIR:~0,-1%"
 
 :: 1. Check/Install Python
-echo [1/6] Checking Python...
+echo [1/7] Checking Python...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo   Python not found. Downloading installer...
@@ -54,7 +54,7 @@ for /f "tokens=*" %%i in ('python --version 2^>^&1') do echo   Found: %%i
 echo.
 
 :: 2. Check/Install Ollama
-echo [2/6] Checking Ollama...
+echo [2/7] Checking Ollama...
 where ollama >nul 2>&1
 if %errorlevel% neq 0 (
     echo   Ollama not found. Downloading installer...
@@ -74,7 +74,7 @@ if %errorlevel% neq 0 (
 echo.
 
 :: 3. Set environment variables (persist across reboots)
-echo [3/6] Configuring environment variables...
+echo [3/7] Configuring environment variables...
 setx OLLAMA_HOST "0.0.0.0" /M >nul 2>&1
 setx OLLAMA_ORIGINS "*" /M >nul 2>&1
 set "OLLAMA_HOST=0.0.0.0"
@@ -83,14 +83,20 @@ echo   OLLAMA_HOST=0.0.0.0
 echo   OLLAMA_ORIGINS=*
 echo.
 
-:: 4. Pull Gemma model
-echo [4/6] Downloading AI model (gemma3:4b ~3.3GB)...
-echo   This may take several minutes on first run...
-"%LOCALAPPDATA%\Programs\Ollama\ollama.exe" pull gemma3:4b
+:: 4. Install Python dependencies
+echo [4/7] Installing Python dependencies...
+pip install -r "%INSTALL_DIR%\Sharepoint\requirements.txt" --quiet
+echo   Dependencies installed.
 echo.
 
-:: 5. Firewall rules
-echo [5/6] Configuring firewall...
+:: 5. Pull AI model
+echo [5/7] Downloading AI model (qwen2.5:7b ~4.7GB)...
+echo   This may take several minutes on first run...
+"%LOCALAPPDATA%\Programs\Ollama\ollama.exe" pull qwen2.5:7b
+echo.
+
+:: 6. Firewall rules
+echo [6/7] Configuring firewall...
 netsh advfirewall firewall delete rule name="FreshdeskDashboard-Proxy" >nul 2>&1
 netsh advfirewall firewall delete rule name="FreshdeskDashboard-Ollama" >nul 2>&1
 netsh advfirewall firewall add rule name="FreshdeskDashboard-Proxy" dir=in action=allow protocol=TCP localport=8080 >nul
@@ -99,8 +105,8 @@ echo   Port 8080 (proxy) - opened
 echo   Port 11434 (Ollama) - opened
 echo.
 
-:: 6. Create scheduled task for auto-start
-echo [6/6] Creating auto-start task...
+:: 7. Create scheduled task for auto-start
+echo [7/7] Creating auto-start task...
 schtasks /delete /tn "FreshdeskDashboard" /f >nul 2>&1
 schtasks /create /tn "FreshdeskDashboard" /tr "\"%INSTALL_DIR%\start.bat\"" /sc onlogon /rl highest /f >nul
 echo   Auto-start on login configured.
