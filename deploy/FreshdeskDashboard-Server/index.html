@@ -488,7 +488,7 @@ async function loadNewTickets(){
         var filtered=all;
 
         const noReply=[];
-        const cache=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
+        const cache=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');
         await Promise.all(filtered.map(function(t){
             const c=cache[t.id];
             if(c&&c.u===t.updated_at&&c.ar!==undefined){
@@ -498,11 +498,11 @@ async function loadNewTickets(){
                 var replied=!!(d.stats&&d.stats.agent_responded_at);
                 t._reqName=d.requester?d.requester.name:'Unknown';
                 t._company=d.company?d.company.name:'';
-                cache[t.id]={u:t.updated_at,lr:true,rn:t._reqName,co:t._company,ar:d.stats?d.stats.agent_responded_at:null};
+                cache[t.id]={u:t.updated_at,rn:t._reqName,co:t._company,ar:d.stats?d.stats.agent_responded_at:null};
                 if(!replied)noReply.push(t);
             }).catch(function(){noReply.push(t)});
         }));
-        try{localStorage.setItem('fd_cache4',JSON.stringify(cache))}catch(e){}
+        try{localStorage.setItem('fd_cache_new',JSON.stringify(cache))}catch(e){}
         D.newTks=noReply.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
         updateNewBadge();
     }catch(e){D.newTks=[];updateNewBadge()}
@@ -1933,7 +1933,7 @@ async function doSearch(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
-async function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache4');await loadAll();await loadNewTickets();applyFilter()}
+async function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache4');localStorage.removeItem('fd_cache_new');await Promise.all([loadAll(),loadNewTickets()]);applyFilter()}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
 
