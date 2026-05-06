@@ -255,6 +255,8 @@ nav .conn-status.on{color:var(--green)}
 .empty-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--g400);gap:8px;font:14px var(--f)}
 .loading-msg{text-align:center;padding:60px;color:var(--g400);font:13px var(--f)}
 .loading-msg::after{content:'';display:inline-block;width:14px;height:14px;border:2px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite;margin-left:8px;vertical-align:middle}
+.prog-bar{height:3px;background:var(--g100);overflow:hidden;flex-shrink:0}
+.prog-bar .fill{height:100%;background:var(--blue);transition:width .3s ease;width:0}
 
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -311,6 +313,7 @@ nav .conn-status.on{color:var(--green)}
             <button onclick="filt(this,'all')">All<span class="tab-badge bg-gray" id="all-badge" style="display:none">0</span></button>
             <button onclick="refresh()" title="Refresh" style="margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--g500)">&#x21bb;</button>
         </div>
+        <div class="prog-bar" id="prog" style="display:none"><div class="fill" id="prog-fill"></div></div>
         <div class="list" id="list"><div class="empty-msg">Connect to load tickets</div></div>
         <div class="pgr" id="pgr" style="display:none">
             <button id="pb" onclick="pg(-1)">Prev</button><span id="pi"></span><button id="pn" onclick="pg(1)">Next</button>
@@ -364,8 +367,7 @@ async function connect(){
         const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';D.sig=me.signature||'';
         localStorage.setItem('fd_apikey',D.key);st(D.anm,1);
         loadCanned();
-        await load();
-        await loadNewTickets();
+        await Promise.all([load(),loadNewTickets()]);
         if(!D._newPoll)D._newPoll=setInterval(()=>{loadNewTickets()},60000);
     }catch(e){
         if(e.message.includes('404')){try{await get('tickets?per_page=1');localStorage.setItem('fd_apikey',D.key);st('Connected',1);load()}catch(e2){st('Failed')}}
@@ -421,39 +423,38 @@ async function checkLastReply(tid){
     return last?(last.incoming!==false):true;
 }
 
+function showProg(done,total){
+    var bar=document.getElementById('prog'),fill=document.getElementById('prog-fill');
+    if(total>0){bar.style.display='block';fill.style.width=Math.round(done/total*100)+'%'}
+    else{bar.style.display='none';fill.style.width='0'}
+}
 async function loadAll(){
     document.getElementById('list').innerHTML='<div class="loading-msg">Loading tickets</div>';
-    const lists=await Promise.all([2,3,6,7,8].map(st=>fetchByStatus(st)));
+    showProg(0,1);
+    const lists=await Promise.all([2,3,8].map(st=>fetchByStatus(st)));
     const seen=new Set();
     D.allOpen=[].concat(...lists).filter(t=>{if(seen.has(t.id))return false;seen.add(t.id);return true});
-    document.getElementById('list').innerHTML='<div class="loading-msg">Loading 0/'+D.allOpen.length+'</div>';
     D.lr={};
-    const cache=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
-    const batches=[];
-    for(let i=0;i<D.allOpen.length;i+=5)batches.push(D.allOpen.slice(i,i+5));
-    let done=0;
-    for(const batch of batches){
-        const results=await Promise.all(batch.map(t=>{
-            const c=cache[t.id];
-            if(c&&c.u===t.updated_at){return Promise.resolve({id:t.id,cached:true,lr:c.lr,rn:c.rn,co:c.co})}
-            var lr=t.status===8?Promise.resolve(true):checkLastReply(t.id).catch(()=>true);
-            var det=get('tickets/'+t.id+'?include=requester,company').catch(()=>null);
-            return Promise.all([lr,det]).then(function(r){return{id:t.id,cached:false,lr:r[0],d:r[1]}});
-        }));
-        for(const r of results){
-            const t=D.allOpen.find(x=>x.id===r.id);
-            if(r.cached){
-                D.lr[t.id]=!!r.lr;t._reqName=r.rn;t._company=r.co;
-            }else{
-                D.lr[t.id]=!!r.lr;
-                t._reqName=r.d&&r.d.requester?r.d.requester.name:'Unknown';
-                t._company=r.d&&r.d.company?r.d.company.name:'';
-                cache[t.id]={u:t.updated_at,lr:r.lr,rn:t._reqName,co:t._company};
-            }
-            done++;
+    var craw=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
+    const cache=craw._v===6?craw:{_v:6};
+    let done=0;const total=D.allOpen.length;
+    let _raf=0;function tick(){done++;showProg(done,total);if(!_raf){_raf=requestAnimationFrame(function(){_raf=0;applyFilter()})}}
+    await Promise.all(D.allOpen.map(function(t){
+        const c=cache[t.id];
+        if(c&&c.u===t.updated_at){
+            D.lr[t.id]=!!c.lr;t._reqName=c.rn;t._company=c.co;tick();return Promise.resolve();
         }
-        document.getElementById('list').innerHTML='<div class="loading-msg">Loading '+done+'/'+D.allOpen.length+'</div>';
-    }
+        var lr=checkLastReply(t.id).catch(function(){return true});
+        var det=get('tickets/'+t.id+'?include=requester,company').catch(function(){return null});
+        return Promise.all([lr,det]).then(function(r){
+            D.lr[t.id]=!!r[0];
+            t._reqName=r[1]&&r[1].requester?r[1].requester.name:'Unknown';
+            t._company=r[1]&&r[1].company?r[1].company.name:'';
+            cache[t.id]={u:t.updated_at,lr:r[0],rn:t._reqName,co:t._company};
+            tick();
+        });
+    }));
+    applyFilter();showProg(0,0);
     try{localStorage.setItem('fd_cache4',JSON.stringify(cache))}catch(e){}
     applyFilter();
 }
@@ -475,48 +476,29 @@ async function loadNewTickets(){
         }
         if(!D._teamIds.length){D.newTks=[];updateNewBadge();return}
 
-        let all=[];
-        for(const aid of D._teamIds){
-            let q='"agent_id:'+aid+' AND status:2"';
-            let pg=1;
-            while(true){
-                const d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);
-                const res=d.results||[];
-                all=all.concat(res);
-                if(res.length<30||pg>=10)break;
-                pg++;
-            }
-        }
-        let filtered=all;
+        var searchOne=async function(aid){
+            let q='"agent_id:'+aid+' AND status:2"',r=[],pg=1;
+            while(true){const d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);const res=d.results||[];r=r.concat(res);if(res.length<30||pg>=10)break;pg++}
+            return r;
+        };
+        const all=[].concat(...await Promise.all(D._teamIds.map(searchOne)));
+        var filtered=all;
 
         const noReply=[];
         const cache=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
-        const batches=[];
-        for(let i=0;i<filtered.length;i+=5)batches.push(filtered.slice(i,i+5));
-        for(const batch of batches){
-            const results=await Promise.all(batch.map(t=>{
-                const c=cache[t.id];
-                if(c&&c.u===t.updated_at&&c.ar!==undefined){
-                    return Promise.resolve({id:t.id,cached:true,replied:!!c.ar,rn:c.rn,co:c.co});
-                }
-                return get('tickets/'+t.id+'?include=stats,requester,company').then(d=>({id:t.id,cached:false,d})).catch(()=>({id:t.id,cached:true,replied:false,rn:'Unknown',co:''}));
-            }));
-            for(const r of results){
-                const t=filtered.find(x=>x.id===r.id);
-                if(r.cached&&!r.d){
-                    t._reqName=r.rn;t._company=r.co;
-                    if(!r.replied)noReply.push(t);
-                }else if(r.d){
-                    const replied=!!(r.d.stats&&r.d.stats.agent_responded_at);
-                    t._reqName=r.d.requester?r.d.requester.name:'Unknown';
-                    t._company=r.d.company?r.d.company.name:'';
-                    cache[t.id]={u:t.updated_at,lr:true,rn:t._reqName,co:t._company,ar:r.d.stats?r.d.stats.agent_responded_at:null};
-                    if(!replied)noReply.push(t);
-                }else{
-                    noReply.push(t);
-                }
+        await Promise.all(filtered.map(function(t){
+            const c=cache[t.id];
+            if(c&&c.u===t.updated_at&&c.ar!==undefined){
+                t._reqName=c.rn;t._company=c.co;if(!c.ar)noReply.push(t);return Promise.resolve();
             }
-        }
+            return get('tickets/'+t.id+'?include=stats,requester,company').then(function(d){
+                var replied=!!(d.stats&&d.stats.agent_responded_at);
+                t._reqName=d.requester?d.requester.name:'Unknown';
+                t._company=d.company?d.company.name:'';
+                cache[t.id]={u:t.updated_at,lr:true,rn:t._reqName,co:t._company,ar:d.stats?d.stats.agent_responded_at:null};
+                if(!replied)noReply.push(t);
+            }).catch(function(){noReply.push(t)});
+        }));
         try{localStorage.setItem('fd_cache4',JSON.stringify(cache))}catch(e){}
         D.newTks=noReply.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
         updateNewBadge();
@@ -1544,10 +1526,11 @@ function replyHTML(t,c){
         h+='<div class="ctx-box"><b>'+(lang==='es'?'Soluciones ya intentadas':'Already tried')+':</b> '+Array.from(ctx.triedSolutions).join(', ')+'</div>';
     }
 
-    const lastMsg=m.length?m[m.length-1]:null;
+    const pubMsgs=m.filter(x=>x.f!=='Note');
+    const lastMsg=pubMsgs.length?pubMsgs[pubMsgs.length-1]:null;
     if(lastMsg){
         const isC=lastMsg.f==='Customer';
-        const lbl=isC?firstName:(lastMsg.f==='Note'?(lang==='es'?'Nota interna':'Internal note'):'Agent');
+        const lbl=isC?firstName:'Agent';
         const clr=isC?'var(--orange)':'var(--blue)';
         const bg=isC?'var(--orange-bg)':'var(--blue-bg)';
         const cleanTxt=cleanEmailBody(lastMsg.t);
