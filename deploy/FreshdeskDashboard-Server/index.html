@@ -368,7 +368,7 @@ async function connect(){
         localStorage.setItem('fd_apikey',D.key);st(D.anm,1);
         loadCanned();
         await Promise.all([load(),loadNewTickets()]);
-        if(!D._newPoll)D._newPoll=setInterval(()=>{loadNewTickets()},60000);
+        if(!D._newPoll)D._newPoll=setInterval(()=>{refresh()},300000);
     }catch(e){
         if(e.message.includes('404')){try{await get('tickets?per_page=1');localStorage.setItem('fd_apikey',D.key);st('Connected',1);load()}catch(e2){st('Failed')}}
         else st('Failed: '+e.message);
