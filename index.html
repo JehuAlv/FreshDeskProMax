@@ -54,16 +54,21 @@ nav .conn-status.on{color:var(--green)}
 .app{display:flex;height:calc(100vh - 52px)}
 
 /* ===== LEFT PANEL ===== */
-.left{width:360px;display:flex;flex-direction:column;background:var(--white);border-right:0.5px solid var(--g200)}
-.tabs{display:flex;padding:12px 12px 0;gap:4px}
+.left{width:420px;display:flex;flex-direction:column;background:var(--white);border-right:0.5px solid var(--g200)}
+.tabs{display:flex;padding:12px 10px 0;gap:3px}
 .tabs button{
-    height:32px;padding:0 14px;border:none;border-radius:980px;
-    font:500 12px var(--f);cursor:pointer;color:var(--g600);background:none;transition:all .15s;
+    height:32px;padding:0 10px;border:none;border-radius:980px;
+    font:500 12px var(--f);cursor:pointer;color:var(--g600);background:none;transition:all .15s;white-space:nowrap;
 }
 .tabs button:hover{background:var(--g100)}
 .tabs button.on{background:var(--black);color:var(--white)}
-.tabs .cnt{margin-left:auto;font:500 11px var(--f);color:var(--g400);align-self:center;padding-right:4px}
-.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:#e53e3e;color:#fff;font:700 10px/1 var(--f);padding:0 5px;margin-left:5px;vertical-align:middle}
+.tabs button.on .tab-badge{opacity:.9}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;border-radius:8px;color:#fff;font:700 9px/1 var(--f);padding:0 4px;margin-left:4px;vertical-align:middle}
+.tab-badge.bg-red{background:#e53e3e}
+.tab-badge.bg-amber{background:#b36b00}
+.tab-badge.bg-purple{background:#7c3aed}
+.tab-badge.bg-green{background:#1a8a3a}
+.tab-badge.bg-gray{background:var(--g400)}
 .list{flex:1;overflow-y:auto;padding:8px 0}
 .list::-webkit-scrollbar{width:0;background:transparent}
 .tkt{
@@ -86,6 +91,10 @@ nav .conn-status.on{color:var(--green)}
 .tkt .indicator.yours{background:var(--orange-bg);color:#b36b00}
 .tkt .indicator.wait{background:var(--green-bg);color:#1a8a3a}
 .tkt .indicator.new{background:var(--blue-bg);color:var(--blue)}
+.tkt .indicator.pend{background:var(--purple-bg);color:#7c3aed}
+.ctx-menu{position:fixed;background:var(--white);border:1px solid var(--g200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:4px 0;z-index:999;min-width:160px}
+.ctx-menu div{padding:7px 14px;font:500 12px/1.4 var(--f);cursor:pointer;color:var(--black)}
+.ctx-menu div:hover{background:var(--g100)}
 .tkt .indicator.stale{background:var(--red-bg);color:#c00}
 .pgr{display:flex;gap:8px;padding:10px;justify-content:center;border-top:0.5px solid var(--g200)}
 .pgr button{
@@ -295,12 +304,12 @@ nav .conn-status.on{color:var(--green)}
     <!-- LEFT: ticket list -->
     <div class="left">
         <div class="tabs">
-            <button onclick="filt(this,'new')">New Tickets<span class="tab-badge" id="new-badge" style="display:none">0</span></button>
-            <button class="on" onclick="filt(this,2)">My Turn</button>
-            <button onclick="filt(this,3)">Waiting</button>
-            <button onclick="filt(this,'all')">All</button>
-            <span class="cnt" id="cnt"></span>
-            <button onclick="refresh()" title="Refresh" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:1rem;padding:2px 6px;color:var(--g500)">&#x21bb;</button>
+            <button onclick="filt(this,'new')">New<span class="tab-badge bg-red" id="new-badge" style="display:none">0</span></button>
+            <button class="on" onclick="filt(this,2)">My Turn<span class="tab-badge bg-amber" id="turn-badge" style="display:none">0</span></button>
+            <button onclick="filt(this,4)">Pending<span class="tab-badge bg-purple" id="pend-badge" style="display:none">0</span></button>
+            <button onclick="filt(this,3)">Waiting<span class="tab-badge bg-green" id="wait-badge" style="display:none">0</span></button>
+            <button onclick="filt(this,'all')">All<span class="tab-badge bg-gray" id="all-badge" style="display:none">0</span></button>
+            <button onclick="refresh()" title="Refresh" style="margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--g500)">&#x21bb;</button>
         </div>
         <div class="list" id="list"><div class="empty-msg">Connect to load tickets</div></div>
         <div class="pgr" id="pgr" style="display:none">
@@ -322,11 +331,11 @@ nav .conn-status.on{color:var(--green)}
 const PC={1:'var(--green)',2:'var(--orange)',3:'var(--red)',4:'var(--red)'};
 const PN={1:'Low',2:'Medium',3:'High',4:'Urgent'};
 const PCLS={1:'chip-low',2:'chip-med',3:'chip-high',4:'chip-urg'};
-const SN={2:'Open',3:'Pending',4:'Resolved',5:'Closed'};
-const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed'};
+const SN={2:'Open',3:'Pending',4:'Resolved',5:'Closed',8:'ReOpen',9:'On-hold',11:'Waiting for local engineer'};
+const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed',8:'chip-open',9:'chip-pending',11:'chip-pending'};
 const ICLS={1:'pill-low',2:'pill-med',3:'pill-high',4:'pill-urg'};
 
-let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',sig:'',allOpen:[],lr:{},canned:null,newTks:[]};
+let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',sig:'',allOpen:[],lr:{},canned:null,newTks:[],pending:new Set(JSON.parse(localStorage.getItem('fd_pending')||'[]'))};
 
 document.getElementById('inp-search').onkeydown=e=>{if(e.key==='Enter')doSearch()};
 document.getElementById('inp-key').onkeydown=e=>{if(e.key==='Enter')connect()};
@@ -438,10 +447,11 @@ async function loadAll(){
                 const d=r.d;
                 const rr=d.stats?d.stats.requester_responded_at:null;
                 const ar=d.stats?d.stats.agent_responded_at:null;
-                D.lr[t.id]=!!(rr&&(!ar||new Date(rr)>new Date(ar)));
+                var isReopen=t.status===8;
+                D.lr[t.id]=isReopen||!!(rr&&(!ar||new Date(rr)>new Date(ar)));
                 t._reqName=d.requester?d.requester.name:'Unknown';
                 t._company=d.company?d.company.name:'';
-                if(ar&&rr&&Math.abs(new Date(rr)-new Date(ar))<120000){ambiguous.push(t.id)}
+                if(!isReopen&&ar&&rr&&Math.abs(new Date(rr)-new Date(ar))<120000){ambiguous.push(t.id)}
                 cache[t.id]={u:t.updated_at,lr:D.lr[t.id],rn:t._reqName,co:t._company};
             }
             done++;
@@ -532,11 +542,17 @@ function applyFilter(){
     if(D.fl==='new'){
         D.tks=D.newTks.slice();
     }
-    else if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
+    else if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true&&!D.pending.has(t.id)).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
+    else if(D.fl===4)D.tks=D.allOpen.filter(t=>D.pending.has(t.id)).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
     else if(D.fl===3)D.tks=D.allOpen.filter(t=>D.lr[t.id]===false).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
     else D.tks=D.allOpen.slice();
     D.pgs=1;
-    rl();up();document.getElementById('cnt').textContent=D.tks.length;
+    rl();up();
+    function setBadge(id,c){var b=document.getElementById(id);if(c>0){b.textContent=c;b.style.display='inline-flex'}else{b.style.display='none'}}
+    setBadge('turn-badge',D.allOpen.filter(t=>D.lr[t.id]===true&&!D.pending.has(t.id)).length);
+    setBadge('pend-badge',D.allOpen.filter(t=>D.pending.has(t.id)).length);
+    setBadge('wait-badge',D.allOpen.filter(t=>D.lr[t.id]===false).length);
+    setBadge('all-badge',D.allOpen.length);
 }
 
 async function load(){
@@ -548,7 +564,7 @@ async function load(){
             else{applyFilter()}
         }else{
             D.tks=await get('tickets?per_page=100&page='+D.pg+'&order_by=updated_at&order_type=desc&include=requester');
-            rl();up();document.getElementById('cnt').textContent=D.tks.length;
+            rl();up();
         }
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
@@ -565,13 +581,46 @@ function rl(){
         let ind='',ic='';
         const isNew=D.newTks.some(n=>n.id===t.id);
         if(isNew){ind='new';ic='NEW'}
+        else if(D.pending.has(t.id)){ind='pend';ic='PENDING'}
         else if(D.lr[t.id]===true){ind='yours';ic='YOUR TURN'}
         else if(D.lr[t.id]===false){ind='wait';ic='WAITING'}
-        return '<div class="tkt '+ac+'" onclick="sel('+t.id+')">'+
+        return '<div class="tkt '+ac+'" onclick="sel('+t.id+')" oncontextmenu="return tkCtx(event,'+t.id+')">'+
             '<div class="pri" style="background:'+(PC[t.priority]||'var(--g300)')+'"></div>'+
             '<div class="col"><div class="ttl">#'+t.id+' '+esc(t.subject||'')+'</div><div class="sub">'+sub+'</div></div>'+
             '<div class="right"><div class="time">'+ago(new Date(t.updated_at))+'</div>'+(ind?'<div class="indicator '+ind+'">'+ic+'</div>':'')+'</div></div>';
     }).join('');
+}
+
+function tkCtx(e,id){
+    e.preventDefault();
+    var old=document.getElementById('tk-ctx');if(old)old.remove();
+    var isPend=D.pending.has(id);
+    var isYours=D.lr[id]===true&&!isPend;
+    if(!isYours&&!isPend)return false;
+    var m=document.createElement('div');m.id='tk-ctx';m.className='ctx-menu';
+    m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';
+    if(isYours){
+        var opt=document.createElement('div');opt.textContent='Move to Pending';
+        opt.onclick=function(){m.remove();markPending(id)};m.appendChild(opt);
+    }else{
+        var opt=document.createElement('div');opt.textContent='Move back to My Turn';
+        opt.onclick=function(){m.remove();unmarkPending(id)};m.appendChild(opt);
+    }
+    document.body.appendChild(m);
+    var close=function(){m.remove();document.removeEventListener('click',close)};
+    setTimeout(function(){document.addEventListener('click',close)},0);
+    return false;
+}
+function savePending(){localStorage.setItem('fd_pending',JSON.stringify([...D.pending]))}
+async function markPending(id){
+    D.pending.add(id);savePending();
+    try{await fetch('/fd/tickets/'+id,{method:'PUT',headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},body:JSON.stringify({status:3})})}catch(e){}
+    applyFilter();
+}
+async function unmarkPending(id){
+    D.pending.delete(id);savePending();
+    try{await fetch('/fd/tickets/'+id,{method:'PUT',headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},body:JSON.stringify({status:2})})}catch(e){}
+    applyFilter();
 }
 
 async function sel(id){
@@ -1816,7 +1865,6 @@ async function generateAI(provider,extraCtx){
     if(!extraCtx){const el=document.getElementById('ai-extra');if(el)extraCtx=el.value.trim()}
     const{sys,usr}=aiPrompt(rc,extraCtx||'');
     let result=null;
-
     try{result=await tryOllama(sys,usr)}catch(e){
         out.innerHTML='<div class="ctx-box">'+(esL?'Ollama no disponible. Asegúrate de que esté corriendo.':'Ollama not available. Make sure it is running.')+'</div>';
         btns.forEach(b=>{b.disabled=false});return;
@@ -1889,13 +1937,13 @@ async function doSearch(){
             t._reqName=t.requester?t.requester.name:'Unknown';
             t._company=t.company?t.company.name:'';
             D.tks=[t];D.pg=1;D.pgs=1;
-            rl();up();document.getElementById('cnt').textContent='1';
+            rl();up();
             sel(t.id);
         }else{
             let qr='"'+q;if(D.aid)qr+=' AND agent_id:'+D.aid;qr+='"';
             const d=await get('search/tickets?query='+encodeURIComponent(qr));
             D.tks=d.results||[];D.pg=1;D.pgs=Math.ceil((d.total||D.tks.length)/30)||1;
-            rl();up();document.getElementById('cnt').textContent=(d.total||D.tks.length);
+            rl();up();
         }
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }

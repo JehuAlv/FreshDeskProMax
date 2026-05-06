@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 *.csv
+*.log
 Sharepoint/token_cache.json
 Sharepoint/.env
 deploy/*.zip
+start-proxy.vbs
+stop-proxy.vbs

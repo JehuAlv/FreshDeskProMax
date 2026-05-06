@@ -90,6 +90,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             super().do_GET()
 
+    def do_PUT(self):
+        if self.path.startswith('/fd/'):
+            self._proxy('PUT')
+        else:
+            self.send_error(404)
+
     def do_POST(self):
         if self.path.startswith('/fd/'):
             self._proxy('POST')
@@ -208,7 +214,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'X-FD-Key, X-FD-Domain, Content-Type')
         self.end_headers()
 
@@ -228,7 +234,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         req.add_header('Authorization', 'Basic ' + auth)
         req.add_header('Content-Type', 'application/json')
 
-        if method == 'POST':
+        if method in ('POST', 'PUT'):
             length = int(self.headers.get('Content-Length', 0))
             if length > 0:
                 req.data = self.rfile.read(length)
@@ -288,8 +294,13 @@ def _kill_previous():
     except Exception:
         pass
 
+import socketserver
+class ThreadedServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 _kill_previous()
 threading.Thread(target=_preload_model, daemon=True).start()
-server = http.server.HTTPServer(('0.0.0.0', PORT), ProxyHandler)
+server = ThreadedServer(('0.0.0.0', PORT), ProxyHandler)
+print('[proxy] Listening on port %d' % PORT)
 server.serve_forever()
