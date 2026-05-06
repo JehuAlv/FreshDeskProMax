@@ -433,12 +433,12 @@ async function loadAll(){
         for(const r of results){
             const t=D.allOpen.find(x=>x.id===r.id);
             if(r.cached&&!r.d){
-                D.lr[t.id]=r.lr;t._reqName=r.rn;t._company=r.co;
+                D.lr[t.id]=!!r.lr;t._reqName=r.rn;t._company=r.co;
             }else{
                 const d=r.d;
                 const rr=d.stats?d.stats.requester_responded_at:null;
                 const ar=d.stats?d.stats.agent_responded_at:null;
-                D.lr[t.id]=(rr&&(!ar||new Date(rr)>new Date(ar)));
+                D.lr[t.id]=!!(rr&&(!ar||new Date(rr)>new Date(ar)));
                 t._reqName=d.requester?d.requester.name:'Unknown';
                 t._company=d.company?d.company.name:'';
                 if(ar&&rr&&Math.abs(new Date(rr)-new Date(ar))<120000){ambiguous.push(t.id)}
