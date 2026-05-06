@@ -802,7 +802,31 @@ const KB=[
         en:'We identified that the configured timeout is not sufficient. We will increase the timeout values to allow enough time for data processing.'},
     {id:'logRetention',kw:/log.*delet|auto.*log|borrar.*log|log.*retention|retención.*log|disk.*space|espacio.*disco|clean.*log|limpiar.*log/i,
         es:'Por favor verifica el valor en BRM > Log > Data Retention Period. BRM se encarga de borrar sus propios logs según esta configuración.',
-        en:'Please verify the value in BRM > Log > Data Retention Period. BRM is in charge of deleting its own logs based on this setting.'}
+        en:'Please verify the value in BRM > Log > Data Retention Period. BRM is in charge of deleting its own logs based on this setting.'},
+    {id:'autoClassify',kw:/auto.?clasif|auto.?juzga|auto.?judge|auto.?adjud|autoclasificad|self.?judge|auto.?review|componente.*operador|operator.*judg/i,
+        es:'El autoclasificado depende de la configuración en el KBR. ¿Podrías compartir el número de serie del equipo y confirmar qué comportamiento esperas? (Ej: que el operador no clasifique nada, o solo ciertos defectos)',
+        en:'Auto-classification depends on the KBR configuration. Could you share the machine serial number and confirm what behavior you expect? (e.g., operator should not judge anything, or only specific defects)'},
+    {id:'secsGem',kw:/secs.?gem|secs\/gem|gem.*connect|gem.*error|secs.*communic|gem.*timeout|hsms/i,
+        es:'Se observa un error en la conexión SECS/GEM. ¿Podrías compartir el Issue Report de BRM para analizar los logs de comunicación?',
+        en:'A SECS/GEM connection error was observed. Could you share the BRM Issue Report so we can analyze the communication logs?'},
+    {id:'messageForwarding',kw:/message.?forward|msg.*forward|legacy.*mes|ky.?mes|closed.?loop|close.*loop/i,
+        es:'El Closed Loop se controla mediante el software legacy KY-MES junto con la función de Message Forwarding en BRM. ¿Necesitas ayuda con la configuración?',
+        en:'Closed Loop is controlled by the legacy KY-MES software along with the Message Forwarding feature in BRM. Do you need help with the setup?'},
+    {id:'uuidLicense',kw:/uuid|license.*activ|activat.*license|licencia.*activ|serial.*number.*license|bios.*uuid/i,
+        es:'Para la activación necesitamos el S/N y UUID de cada máquina. Puedes obtener el UUID con el comando: wmic path win32_computersystemproduct get uuid',
+        en:'For activation we need the S/N and UUID of each machine. You can retrieve the UUID using: wmic path win32_computersystemproduct get uuid'},
+    {id:'mesNotResponding',kw:/no.*response.*mes|mes.*no.*respon|mes.*not.*respond|mes.*timeout|brm.*no.*respon|waiting.*mes|esperando.*mes|mes.*hang|mes.*colga/i,
+        es:'Cuando BRM no responde, generalmente es un problema de conexión o configuración. ¿Podrías compartir el Issue Report y verificar que el checkbox "Use MES" en la GUI esté activo?',
+        en:'When BRM is not responding, it is usually a connection or configuration issue. Could you share the Issue Report and verify that the "Use MES" checkbox in the GUI is active?'},
+    {id:'fileExportError',kw:/export.*error|error.*export|no.*genera.*archivo|file.*not.*creat|archivo.*no.*genera|auto.?export.*fail|export.*path/i,
+        es:'¿Podrías verificar que la ruta de exportación existe y que BRM tiene permisos de escritura? También confirma que el XSLT configurado es correcto.',
+        en:'Could you verify that the export path exists and BRM has write permissions? Also confirm that the configured XSLT is correct.'},
+    {id:'brmCrash',kw:/brm.*(crash|se cayó|cerr[oó]|closed.*unexpected|stopped|dejó de funcionar|frozep|congel)|crash.*brm/i,
+        es:'¿Podrías compartir el Issue Report de BRM? Lo puedes generar desde BRM > Help > Issue Report. Si el archivo es muy pesado, usa https://fromsmash.com para compartirlo.',
+        en:'Could you share the BRM Issue Report? You can generate it from BRM > Help > Issue Report. If the file is too large, use https://fromsmash.com to share it.'},
+    {id:'mesInstall',kw:/install.*brm|brm.*install|instalar.*brm|setup.*brm|brm.*setup|mes.*install|instalar.*mes|actualizar.*brm|upgrade.*brm|brm.*upgrade/i,
+        es:'Te comparto los archivos del BRM más reciente. La instalación no afecta otras aplicaciones; la interacción comienza después de aplicar un KBR.',
+        en:'I am sharing the latest BRM files. The installation does not affect other applications; the interaction starts only after applying a KBR.'}
 ];
 
 function matchKB(text,alreadyUsed){
@@ -1584,6 +1608,7 @@ function extractContext(allLow,m,lastCust,lastAgent){
     const isScheduling=!!allLow.match(/schedul|meeting|call|appointment|availab|agendar|reunión|cita|disponibilidad|horario|junta/i);
     const hadRemoteSession=!!allLow.match(/teamviewer|remote.session|anydesk|tv.id|connected.remote|during.*(session|remote)|sesión remota|nos conectamos|conecté remotamente/i);
     const hasScreenshot=!!allLow.match(/screenshot|screen.?shot|image|picture|attached.*png|attached.*jpg|captura|imagen|adjunt.*png|adjunt.*jpg/i);
+    const customerSentImages=!!(allLow.match(/\[cid:image|\[cid:.*\.png|\[cid:.*\.jpg|<img|\.png|\.jpg|\.jpeg|\.gif|screenshot|captura|imagen adjunt|attached.*image|adjunto.*imagen|here.*screenshot|adjunto.*captura/i));
     const hasLogs=!!allLow.match(/log.file|logs|attached.*log|error.log|archivo.*log|logs adjunt/i);
     const hasVersion=!!allLow.match(/version|v\d+\.\d+|brm.\d|versión/i);
     const hasSteps=!!allLow.match(/step|reproduce|when.i|happens.when|to.reproduce|paso|reproducir|cuando.hago|ocurre.cuando/i);
@@ -1651,7 +1676,7 @@ function extractContext(allLow,m,lastCust,lastAgent){
 
     return{isError,isTechnical,isBRM,isInspection,isQuote,isScheduling,hadRemoteSession,
         hasScreenshot,hasLogs,hasVersion,hasSteps,mainIssue,wasScheduling,pendingAction,
-        isUrgent,triedSolutions,agentAskedFor,customerProvided};
+        isUrgent,triedSolutions,agentAskedFor,customerProvided,customerSentImages};
 }
 
 function openFd(){if(D.dom&&D.cur&&D.cur.id)window.open('https://'+D.dom+'/a/tickets/'+D.cur.id,'_blank')}
@@ -1678,6 +1703,7 @@ function aiPrompt(rc,extraCtx){
     const lastAgent=lastAgentMsgs.length?lastAgentMsgs[lastAgentMsgs.length-1]:null;
 
     const isWaiting=D.fl===3;
+    const hasImages=rc.ctx.customerSentImages;
     let action='';
     if(isWaiting&&lastAgent){
         const agentText=cleanEmailBody(lastAgent.t).toLowerCase();
@@ -1692,82 +1718,106 @@ function aiPrompt(rc,extraCtx){
         else
             action='Follow up: politely ask for a status update on your last message';
     }else if(!lastAgent){
-        if(rc.ctx.isUrgent)action='Ask for TeamViewer credentials for urgent remote session';
-        else if(rc.ctx.isError)action='Ask for BRM logs with attached manual';
-        else if(rc.ctx.isQuote)action='Acknowledge and give timeline for quote';
-        else action='Respond to the customer request';
+        if(rc.ctx.isUrgent)action='This is URGENT (line down/production stopped). Ask for TeamViewer credentials for immediate remote session.';
+        else if(rc.ctx.isError&&hasImages)action='Customer reported an error with screenshots you cannot see. Acknowledge images, ask for serial number and BRM Issue Report.';
+        else if(rc.ctx.isError)action='Customer reported an error. Ask for BRM Issue Report (BRM > Help > Issue Report). If file is too large, use fromsmash.com.';
+        else if(rc.ctx.isQuote)action='Acknowledge receipt, say you will review requirements and share estimated timeline.';
+        else if(hasImages)action='Customer sent images you cannot see. Acknowledge receipt, ask for text description of what the images show, or offer remote session.';
+        else action='Respond to the customer request. If unclear, ask specific clarifying questions (serial number, machine type, what behavior they expect).';
     }else if(lastMsg&&lastMsg.f==='Customer'){
         const ct=lastCust?cleanEmailBody(lastCust.t).toLowerCase():'';
-        if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed/i))
-            action='Thank them and offer to close the ticket';
-        else if(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)/i))
-            action='Acknowledge files received, say you will review';
-        else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña/i))
-            action='Confirm credentials received, will connect';
-        else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same/i))
-            action='Problem persists, suggest remote session';
-        else if(ct.match(/status|update|avance|estado|progress|follow/i))
-            action='Provide status update on pending work';
-        else if(ct.match(/question|pregunta|confirm|can you|could you|podrías|puedes/i))
-            action='Answer the customer question directly';
-        else action='Respond to what the customer said';
+        if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good/i))
+            action='Thank them briefly. Offer to close the ticket. Use: "Procederé a cerrar este ticket" / "I will proceed to close this ticket"';
+        else if(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)|sharing/i)||hasImages)
+            action='Customer shared files/images. Say "Gracias por compartir la información, revisaré lo enviado y te doy seguimiento." / "Thank you for sharing, I will review and follow up."';
+        else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña|anydesk/i))
+            action='Customer shared remote credentials. Confirm receipt and say you will connect shortly.';
+        else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same|mismo/i))
+            action='Problem persists. Suggest remote session: ask for TeamViewer credentials, or ask for updated Issue Report.';
+        else if(ct.match(/done|listo|installed|instalé|ya.*cargué|applied|apliqué|loaded/i))
+            action='Customer completed an action you requested. Ask if everything is working now.';
+        else if(ct.match(/status|update|avance|estado|progress|follow|novedad|cuando/i))
+            action='Customer asks for update. Provide honest status or say you are reviewing and will follow up.';
+        else if(ct.match(/question|pregunta|can you|could you|podrías|puedes|es posible|is it possible/i))
+            action='Answer the customer question directly. If you do not know, say you will check and follow up.';
+        else action='Respond to what the customer said. Be specific. If they describe a problem, ask for: 1) Serial number 2) When it started 3) Issue Report.';
     }else{
         action=rc.ctx.pendingAction?'Follow up on: '+rc.ctx.pendingAction
-            :'Ask if the issue is resolved';
+            :'Ask if the issue is resolved or if they need further assistance.';
     }
+
+    const imgRule=hasImages?(esL
+        ?'\n- IMPORTANTE: El cliente envió imágenes/capturas que NO puedes ver. NUNCA finjas que las ves. Reconoce que las recibiste y pide descripción en texto si necesitas más contexto, o ofrece sesión remota para verlo directamente.'
+        :'\n- IMPORTANT: The customer sent images/screenshots you CANNOT see. NEVER pretend you can see them. Acknowledge receipt and ask for a text description if you need more context, or offer a remote session to see it directly.')
+        :'';
 
     const sys=esL
 ?`Eres agente de soporte del equipo KYA MES en Koh Young Technology (software BRM para máquinas AOI/SPI).
 
-FORMATO: Escribe SOLO el email.
+FORMATO:
 - Empieza con: ${rc.hi},
-- 2-4 oraciones. Directo y amigable. Tuteo ("tú").
+- 2-5 oraciones. Directo, amigable, tuteo ("tú"). Sin rodeos.
 - Termina con: ${rc.bye}
-- NADA después de "${rc.bye}".
+- NADA después de "${rc.bye}". Sin firma, sin nombre, sin cargo.
 
 REGLAS:
 - ESPAÑOL solamente
 - Responde SOLO al último mensaje del cliente
 - NO repitas lo que el cliente ya dijo
 - NO inventes soluciones — si no sabes, ofrece revisar o sesión remota
-- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien"
+- Cuando pidas información, sé específico: número de serie, Issue Report de BRM, capturas concretas
+- Si el cliente reporta un error, pide el Issue Report (BRM > Help > Issue Report)
+- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos"${imgRule}
 
-FRASES ÚTILES:
-- Pedir logs: "¿Nos podrías compartir los registros de BRM siguiendo las instrucciones del manual adjunto?"
-- Sesión remota: "¿Me puedes compartir las credenciales de TeamViewer?"
-- Revisar: "Lo revisaré y te doy seguimiento."
-- Resuelto: "Me da gusto saber que se resolvió. Procederé a cerrar este ticket."
-- Seguimiento: "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte de nuestra parte?"
-- Cerrar: "De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos a kya_support@kohyoung.com."
-- Confirmar: "Recibido, muchas gracias."
-- Entregar: "Adjunto encontrarás [X]. Por favor sigue las instrucciones del manual adjunto."
-- Disponibilidad: "Estaré disponible para conectarnos. Por favor comparte las credenciales de TeamViewer cuando estén listos."`
+FRASES REALES DEL EQUIPO (usa estas, no inventes):
+- "¿Nos podrías compartir el Issue Report de BRM?"
+- "¿Me puedes compartir las credenciales de TeamViewer?"
+- "Lo revisaré y te doy seguimiento."
+- "Me da gusto saber que se resolvió. Procederé a cerrar este ticket."
+- "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte de nuestra parte?"
+- "De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos a kya_support@kohyoung.com."
+- "Recibido, muchas gracias."
+- "Adjunto encontrarás [X]. Por favor sigue las instrucciones del manual adjunto."
+- "Estaré disponible para conectarnos. Por favor comparte las credenciales de TeamViewer cuando estén listos."
+- "Hola, si claro, lo revisamos!"
+- "Gracias por compartir la información. Revisaré lo enviado y te doy seguimiento."
+- "¿Podrías validar que la siguiente configuración está correctamente seteada?"
+- "Es necesario conectarnos para verificar. ¿Qué día les es más favorable?"
+- Desarrollo: "Confirmo de recibido. Esperamos tenerlo listo en [tiempo], una vez terminado se compartirá por este medio."
+- Si archivo pesado: "Usa el siguiente link para hacernos llegar el issue report: https://fromsmash.com"`
 
 :`You are a support agent for the KYA MES team at Koh Young Technology (BRM software for AOI/SPI inspection machines).
 
-FORMAT: Write ONLY the email body.
+FORMAT:
 - Start with: ${rc.hi},
-- 2-4 sentences. Direct and friendly.
+- 2-5 sentences. Direct and friendly. No fluff.
 - End with: ${rc.bye}
-- NOTHING after "${rc.bye}".
+- NOTHING after "${rc.bye}". No signature, no name, no title.
 
 RULES:
 - ENGLISH only
 - Respond ONLY to the customer's last message
 - Do NOT repeat what the customer already said
 - Do NOT invent solutions — if unsure, offer to review or schedule remote session
-- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out"
+- When asking for information, be specific: serial number, BRM Issue Report, specific screenshots
+- If the customer reports an error, ask for the Issue Report (BRM > Help > Issue Report)
+- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I hope you are doing well"${imgRule}
 
-USEFUL PHRASES:
-- Request logs: "Could you please share the BRM logs following the instructions in the attached manual?"
-- Remote session: "Could you share the TeamViewer credentials so we can take a look?"
-- Review: "I will review it and follow up."
-- Resolved: "Glad to hear it's resolved. I will proceed to close this ticket."
-- Follow up: "I am following up on this ticket. Do you still need support from our side?"
-- Close: "We will proceed to close this ticket. If you need support in the future, feel free to reach out at kya_support@kohyoung.com."
-- Confirm: "Received, thank you."
-- Deliver: "Please find attached [X]. Follow the instructions in the attached manual."
-- Availability: "I will be available to connect. Please share the TeamViewer credentials when you are ready."`;
+REAL TEAM PHRASES (use these, do not invent):
+- "Could you please share the BRM Issue Report?"
+- "Could you share the TeamViewer credentials so we can take a look?"
+- "I will review it and follow up."
+- "Glad to hear it's resolved. I will proceed to close this ticket."
+- "I am following up on this ticket. Do you still need support from our side?"
+- "We will proceed to close this ticket. If you need support in the future, feel free to reach out at kya_support@kohyoung.com."
+- "Received, thank you."
+- "Please find attached [X]. Follow the instructions in the attached manual."
+- "I will be available to connect. Please share the TeamViewer credentials when you are ready."
+- "Thank you for sharing the information. I will review and get back to you."
+- "Could you please verify that the configuration is properly set?"
+- "We need to connect to verify. When would be a good time for a remote session?"
+- Development: "Confirmed received. We expect to have it ready in [timeframe], once completed we will share it here."
+- Large file: "Please use https://fromsmash.com to send us the issue report."`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
 
@@ -1775,6 +1825,7 @@ USEFUL PHRASES:
     usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
     usrParts.push('Customer: '+rc.firstName);
     if(rc.ctx.mainIssue)usrParts.push('Issue: '+rc.ctx.mainIssue);
+    if(hasImages)usrParts.push('⚠ Customer sent images/screenshots (you CANNOT see them)');
     usrParts.push('');
 
     if(rc.m.length>10)usrParts.push('(Showing last 10 of '+rc.m.length+' messages)\n');
@@ -1782,16 +1833,19 @@ USEFUL PHRASES:
     usrParts.push(thread);
     usrParts.push('');
 
-    if(kbSection)usrParts.push('KB SOLUTIONS:\n'+kbSection+'\n');
-    if(sugSection)usrParts.push('EXAMPLE REPLIES:\n'+sugSection+'\n');
-    if(triedList)usrParts.push('Already tried (do NOT suggest): '+triedList+'\n');
+    if(kbSection)usrParts.push('VERIFIED SOLUTIONS (use these if relevant):\n'+kbSection+'\n');
+    if(sugSection)usrParts.push('EXAMPLE REPLIES FROM TEAM:\n'+sugSection+'\n');
+    if(triedList)usrParts.push('Already tried (do NOT suggest again): '+triedList+'\n');
 
     if(extraCtx&&extraCtx.length>0){
         if(window._aiReply){
-            usrParts.push('REWRITE THIS REPLY:\n'+window._aiReply);
-            usrParts.push('\nFOLLOW THIS INSTRUCTION EXACTLY:\n'+extraCtx);
+            usrParts.push('YOUR PREVIOUS DRAFT:\n'+window._aiReply);
+            usrParts.push('\nThe user wants you to MODIFY the draft above. Follow this instruction precisely:');
+            usrParts.push(extraCtx);
+            usrParts.push('\nKeep the same format (greeting + body + sign-off). Only change what the instruction says. If the instruction says to add something, add it. If it says to change the tone, change it. Be literal.');
         }else{
-            usrParts.push('INSTRUCTION:\n'+extraCtx);
+            usrParts.push('ADDITIONAL INSTRUCTION FROM AGENT:\n'+extraCtx);
+            usrParts.push('Follow this instruction precisely when writing your reply.');
         }
     }else if(isWaiting&&lastAgent){
         const lastAgentText=cleanEmailBody(lastAgent.t);
@@ -1803,9 +1857,7 @@ USEFUL PHRASES:
         usrParts.push('\nACTION: '+action);
     }
 
-    usrParts.push('\n'+( esL
-        ?'Escribe SOLO el email. Empieza con "'+rc.hi+'," y termina con "'+rc.bye+'". Nada más.'
-        :'Write ONLY the email. Start with "'+rc.hi+'," end with "'+rc.bye+'". Nothing else.'));
+    usrParts.push('\nWrite ONLY the email. Start with "'+rc.hi+'," end with "'+rc.bye+'". Nothing else after the sign-off.');
 
     const usr=usrParts.join('\n');
     return{sys,usr};
@@ -1830,7 +1882,7 @@ async function tryOllama(sys,usr){
     const resp=await fetch('/ollama',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.4,num_predict:500,num_ctx:4096,top_p:0.9,repeat_penalty:1.1}})
+        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.3,num_predict:600,num_ctx:8192,top_p:0.85,repeat_penalty:1.2}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
     const data=await resp.json();
