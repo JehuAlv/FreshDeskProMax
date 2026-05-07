@@ -786,8 +786,8 @@ const KB=[
         es:'Durante la sesión remota se identificó [problema] y se realizaron los ajustes necesarios. ¿Hay algo más en lo que podamos ayudarte?',
         en:'During the remote session we identified [issue] and made the necessary adjustments. Is there anything else we can help you with?'},
     {id:'issueReport',kw:/issue.*report|reporte.*issue|compartir.*reporte|share.*report|heavy.*file|archivo.*pesado|large.*file/i,
-        es:'Usa el siguiente link para hacernos llegar el issue report:\nhttps://fromsmash.com\nUna vez que el archivo haya sido cargado, compártenos el enlace de descarga.',
-        en:'Please use the following link to send us the issue report:\nhttps://fromsmash.com\nOnce the file has been uploaded, share the download link with us.'},
+        es:'Por favor sube los archivos al siguiente folder de SharePoint:\n{SP_LINK}\nUna vez subidos, avísanos por favor.',
+        en:'Please upload the files to the following SharePoint folder:\n{SP_LINK}\nOnce uploaded, please let us know.'},
     {id:'verifyConfig',kw:/verificar.*config|verify.*config|check.*setting|revisar.*config|validar.*config|validate.*config|double.*check/i,
         es:'¿Podrías validar que la siguiente configuración está correctamente seteada? Compártenos una captura de la configuración actual.',
         en:'Could you please verify that the following configuration is properly set? Please share a screenshot of the current configuration.'},
@@ -828,11 +828,44 @@ const KB=[
         es:'¿Podrías verificar que la ruta de exportación existe y que BRM tiene permisos de escritura? También confirma que el XSLT configurado es correcto.',
         en:'Could you verify that the export path exists and BRM has write permissions? Also confirm that the configured XSLT is correct.'},
     {id:'brmCrash',kw:/brm.*(crash|se cayó|cerr[oó]|closed.*unexpected|stopped|dejó de funcionar|frozep|congel)|crash.*brm/i,
-        es:'¿Podrías compartir el Issue Report de BRM? Lo puedes generar desde BRM > Help > Issue Report. Si el archivo es muy pesado, usa https://fromsmash.com para compartirlo.',
-        en:'Could you share the BRM Issue Report? You can generate it from BRM > Help > Issue Report. If the file is too large, use https://fromsmash.com to share it.'},
+        es:'¿Podrías compartir el Issue Report de BRM? Lo puedes generar desde BRM > Help > Issue Report.\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n{SP_LINK}',
+        en:'Could you share the BRM Issue Report? You can generate it from BRM > Help > Issue Report.\n\nPlease upload the files to the following SharePoint folder:\n{SP_LINK}'},
     {id:'mesInstall',kw:/install.*brm|brm.*install|instalar.*brm|setup.*brm|brm.*setup|mes.*install|instalar.*mes|actualizar.*brm|upgrade.*brm|brm.*upgrade/i,
         es:'Te comparto los archivos del BRM más reciente. La instalación no afecta otras aplicaciones; la interacción comienza después de aplicar un KBR.',
-        en:'I am sharing the latest BRM files. The installation does not affect other applications; the interaction starts only after applying a KBR.'}
+        en:'I am sharing the latest BRM files. The installation does not affect other applications; the interaction starts only after applying a KBR.'},
+    {id:'dpiDbStructure',kw:/dpi.*(database|db|structure|day)|database.*structure.*day|estructura.*base.*datos.*d[ií]a/i,
+        es:'Problema conocido de DPI: la estructura de base de datos no se crea correctamente cuando se configura como "Day". Cambiar a otra opción o verificar la versión de DPI.',
+        en:'Known DPI issue: database structure is not created correctly when set as "Day". Change to another option or verify the DPI version.'},
+    {id:'aoiBadmark',kw:/badmark.*barcode|panel.*badmark|barcode.*panel.*not.*stored|badmark.*2\.8/i,
+        es:'Problema conocido: en GUI versión 2.8.X, cuando se usan panel badmarks, los barcodes del panel no se almacenan en la base de datos. Actualizar a una versión más reciente.',
+        en:'Known issue: GUI version 2.8.X when using panel badmarks, the panel barcodes are not stored in database. Upgrade to a newer version.'},
+    {id:'aoiSendScrap',kw:/sendscrap|send.*scrap|eject.*board|bypass.*mode/i,
+        es:'Para desarrollos que usen SendScrap, usar GUI versión 2.9.12. Otras versiones pueden no expulsar la tarjeta o entrar en modo bypass.',
+        en:'For developments using SendScrap, use GUI version 2.9.12. Other versions may not eject the board or may turn into bypass mode.'},
+    {id:'aoiReviewExport',kw:/review.*not.*generat.*export|review.*file.*export|no.*genera.*archivo.*review|send.*result.*mesif/i,
+        es:'Si Review no genera el file export, verificar que "Send Result to MESIF" esté habilitado en la configuración de la GUI.',
+        en:'If Review is not generating the file export, verify that "Send Result to MESIF" is enabled in the GUI settings.'},
+    {id:'spiMesOnOff',kw:/mesonoff|mes.*on.*off|brm.*logic.*not.*trigger|brm.*no.*trigger|spi.*mes.*off/i,
+        es:'MESONOFF fue introducido en SPI GUI alrededor de la versión 5.X. Si este mensaje está en OFF, la lógica de BRM ya no se ejecutará. Verificar que esté en ON.',
+        en:'MESONOFF was introduced in SPI GUI around version 5.X. If this message is set as OFF, BRM logic will no longer trigger. Verify it is set to ON.'},
+    {id:'spiMsgForwardTimeout',kw:/can.*not.*read.*inspection|cannot.*read.*inspection|no.*puede.*leer.*inspecci[oó]n|message.*forwarding.*timeout/i,
+        es:'Problema conocido: "Can not read inspection data. Please restart program." Se soluciona cambiando el timeout de Message Forwarding en BRM a 1000.',
+        en:'Known issue: "Can not read inspection data. Please restart program." Fix by setting the BRM Message Forwarding timeout to 1000.'},
+    {id:'brmValidateBug',kw:/validate.*button.*not.*warn|compile.*issue.*not.*warn|2\.8\.1\.2.*validate|validar.*no.*advierte/i,
+        es:'Problema conocido: BRM versión 2.8.1.2 no advierte de errores de compilación al 100% cuando se usa el botón Validate. Actualizar a una versión más reciente.',
+        en:'Known issue: BRM version 2.8.1.2 does not warn of 100% compile issues when using the validate button. Upgrade to a newer version.'},
+    {id:'brmCoverageReport',kw:/coverage.*report.*not.*clear|coverage.*report.*folder|carpeta.*coverage/i,
+        es:'Problema conocido: versiones diferentes a BRM 2.8.2.2 pueden no limpiar la carpeta de Coverage Report correctamente.',
+        en:'Known issue: BRM versions different from 2.8.2.2 may not clear the Coverage Report folder correctly.'},
+    {id:'brmCfxAmqp',kw:/amqp.*connection|cfx.*secure.*not.*connect|alternative.*cfx|cfx.*amqp|broker.*amqp/i,
+        es:'Si la conexión CFX segura no conecta, usar como alternativa la conexión AMQP directa: amqp://username:password@broker',
+        en:'If the CFX secure connection is not connecting, use the alternative direct AMQP connection: amqp://username:password@broker'},
+    {id:'brmInspectResultInvalid',kw:/inspectresultinvalid|inspection.*result.*invalid|component.*defect.*constraint|componentguid.*not.*exist|save.*barcode.*component.*always/i,
+        es:'Error conocido: "Inspection Result is Invalid" con error de constraint Component_Defect. Hay valores ComponentGUID en la tabla Defect que no existen en Component. Solución: desactivar "Save Barcode on Component Always(NG + GOOD)" en AOI GUI > Settings > Data/Export.',
+        en:'Known error: "Inspection Result is Invalid" with Component_Defect constraint error. There are ComponentGUID values in the Defect table that do not exist in the Component table. Fix: disable "Save Barcode on Component Always(NG + GOOD)" in AOI GUI > Settings > Data/Export.'},
+    {id:'brmServiceStop',kw:/failed.*stop.*service|no.*puede.*detener.*servicio|service.*stop.*fail|lodctr/i,
+        es:'Error conocido: "Failed to stop service." Se soluciona ejecutando en CMD como administrador: lodctr /R',
+        en:'Known error: "Failed to stop service." Fix by running in CMD as administrator: lodctr /R'}
 ];
 
 function matchKB(text,alreadyUsed){
@@ -1339,10 +1372,9 @@ function replyHTML(t,c){
         if(kbHits.length&&!intentBody){
             kbHits.slice(0,2).forEach(kb=>{
                 let kbBody=kb[lang];
-                if(kb.id==='issueReport'&&spLink){
-                    kbBody=lang==='es'
-                        ?'Para poder investigar el problema, ¿nos podrías compartir el issue report de BRM? (menú Help > Issue Report)\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink
-                        :'To investigate this issue, could you please share the BRM Issue Report? (menu Help > Issue Report)\n\nPlease upload the files to the following SharePoint folder:\n'+spLink;
+                if(kbBody.includes('{SP_LINK}')){
+                    if(spLink)kbBody=kbBody.replace(/\{SP_LINK\}/g,spLink);
+                    else kbBody=kbBody.replace(/\n?\{SP_LINK\}\n?/g,'');
                 }
                 R.push({g:gRec,nm:l.firstResponse,
                     why:(lang==='es'?'Detectado: ':'Detected: ')+kb.id+' → "'+ trunc(issueText,100)+'"',
@@ -1437,10 +1469,9 @@ function replyHTML(t,c){
         if(kbHits.length&&!mentionsDone&&!ctx.customerProvided){
             kbHits.slice(0,2).forEach(kb=>{
                 let kbBody=kb[lang];
-                if(kb.id==='issueReport'&&spLink){
-                    kbBody=lang==='es'
-                        ?'Para poder investigar el problema, ¿nos podrías compartir el issue report de BRM? (menú Help > Issue Report)\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink
-                        :'To investigate this issue, could you please share the BRM Issue Report? (menu Help > Issue Report)\n\nPlease upload the files to the following SharePoint folder:\n'+spLink;
+                if(kbBody.includes('{SP_LINK}')){
+                    if(spLink)kbBody=kbBody.replace(/\{SP_LINK\}/g,spLink);
+                    else kbBody=kbBody.replace(/\n?\{SP_LINK\}\n?/g,'');
                 }
                 const alreadyAdded=R.some(r=>r.body.includes(kbBody));
                 if(!alreadyAdded){
@@ -1689,12 +1720,19 @@ function openFd(){if(D.dom&&D.cur&&D.cur.id)window.open('https://'+D.dom+'/a/tic
 function cp(i,b){openFd();navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
 function cpText(txt,b){openFd();navigator.clipboard.writeText(txt).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
 
-function aiPrompt(rc,extraCtx){
+function aiPrompt(rc,extraCtx,spLink){
     const recent=rc.m.slice(-10);
     const thread=recent.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
 
     const kbHits=matchKB(rc.issueText,rc.ctx.triedSolutions||new Set());
-    const kbSection=kbHits.length?kbHits.map(k=>'- '+k.id+': '+k[rc.lang]).join('\n'):'';
+    let kbSection=kbHits.length?kbHits.map(k=>{
+        let txt=k[rc.lang];
+        if(txt.includes('{SP_LINK}')){
+            if(spLink)txt=txt.replace(/\{SP_LINK\}/g,spLink);
+            else txt=txt.replace(/\n?\{SP_LINK\}\n?/g,'');
+        }
+        return'- '+k.id+': '+txt;
+    }).join('\n'):'';
 
     const sugSection=rc.suggestions.slice(0,3).map(s=>'- ['+s.nm+']: '+s.body.substring(0,200)).join('\n');
 
@@ -1726,7 +1764,7 @@ function aiPrompt(rc,extraCtx){
     }else if(!lastAgent){
         if(rc.ctx.isUrgent)action='This is URGENT (line down/production stopped). Ask for TeamViewer credentials for immediate remote session.';
         else if(rc.ctx.isError&&hasImages)action='Customer reported an error with screenshots you cannot see. Acknowledge images, ask for serial number and BRM Issue Report.';
-        else if(rc.ctx.isError)action='Customer reported an error. Ask for BRM Issue Report (BRM > Help > Issue Report). If file is too large, use fromsmash.com.';
+        else if(rc.ctx.isError)action='Customer reported an error. Ask for BRM Issue Report (BRM > Help > Issue Report). Ask them to upload to the SharePoint folder.';
         else if(rc.ctx.isQuote)action='Acknowledge receipt, say you will review requirements and share estimated timeline.';
         else if(hasImages)action='Customer sent images you cannot see. Acknowledge receipt, ask for text description of what the images show, or offer remote session.';
         else action='Respond to the customer request. If unclear, ask specific clarifying questions (serial number, machine type, what behavior they expect).';
@@ -1792,7 +1830,7 @@ FRASES REALES DEL EQUIPO (usa estas, no inventes):
 - "¿Podrías validar que la siguiente configuración está correctamente seteada?"
 - "Es necesario conectarnos para verificar. ¿Qué día les es más favorable?"
 - Desarrollo: "Confirmo de recibido. Esperamos tenerlo listo en [tiempo], una vez terminado se compartirá por este medio."
-- Si archivo pesado: "Usa el siguiente link para hacernos llegar el issue report: https://fromsmash.com"
+- Si archivo pesado: pedir que suban al folder de SharePoint del ticket
 - Reunión/sesión: "En un momento me conecto." o "Perfecto, en un momento estoy con ustedes."`
 
 :`You are a support agent for the KYA MES team at Koh Young Technology (BRM software for AOI/SPI inspection machines).
@@ -1826,7 +1864,7 @@ REAL TEAM PHRASES (use these, do not invent):
 - "Could you please verify that the configuration is properly set?"
 - "We need to connect to verify. When would be a good time for a remote session?"
 - Development: "Confirmed received. We expect to have it ready in [timeframe], once completed we will share it here."
-- Large file: "Please use https://fromsmash.com to send us the issue report."
+- Large file: ask them to upload to the ticket's SharePoint folder
 - Meeting/session: "I will connect shortly." or "Sounds good, connecting now."`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
@@ -1843,6 +1881,7 @@ REAL TEAM PHRASES (use these, do not invent):
     usrParts.push(thread);
     usrParts.push('');
 
+    if(spLink)usrParts.push('SHAREPOINT FOLDER FOR THIS TICKET: '+spLink+'\nWhen asking the customer to upload files (Issue Report, logs, screenshots, etc.), ALWAYS include this exact link and ask them to upload there.\n');
     if(kbSection)usrParts.push('VERIFIED SOLUTIONS (use these if relevant):\n'+kbSection+'\n');
     if(sugSection)usrParts.push('EXAMPLE REPLIES FROM TEAM:\n'+sugSection+'\n');
     if(triedList)usrParts.push('Already tried (do NOT suggest again): '+triedList+'\n');
@@ -1901,16 +1940,39 @@ async function tryOllama(sys,usr){
     return{reply,provider:'Ollama (Qwen 2.5 7B)'};
 }
 
+async function ensureSPFolder(){
+    const t=D.cur;if(!t)return null;
+    let link=getSPLink(t.id);
+    if(link)return link;
+    try{
+        const emails=extractTicketEmails();
+        const resp=await fetch('/sharepoint',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ticketId:t.id,emails:emails})
+        });
+        const data=await resp.json();
+        if(data.link){
+            saveSPLink(t.id,data.link);
+            return data.link;
+        }
+    }catch(e){}
+    return null;
+}
+
 async function generateAI(provider,extraCtx){
     const rc=window._replyCtx;if(!rc)return;
     const out=document.getElementById('ai-out');
     const btns=document.querySelectorAll('.ai-btn');
     btns.forEach(b=>{b.disabled=true});
     const esL=rc.lang==='es';
+
     out.innerHTML='<div class="loading-msg">'+(esL?'Generando respuesta':'Generating reply')+'</div>';
 
+    let spLink=getSPLink(D.cur.id);
+    const initialSpLink=spLink;
     if(!extraCtx){const el=document.getElementById('ai-extra');if(el)extraCtx=el.value.trim()}
-    const{sys,usr}=aiPrompt(rc,extraCtx||'');
+    const{sys,usr}=aiPrompt(rc,extraCtx||'',spLink);
     let result=null;
     try{result=await tryOllama(sys,usr)}catch(e){
         out.innerHTML='<div class="ctx-box">'+(esL?'Ollama no disponible. Asegúrate de que esté corriendo.':'Ollama not available. Make sure it is running.')+'</div>';
@@ -1918,9 +1980,23 @@ async function generateAI(provider,extraCtx){
     }
 
     if(result){
-        window._aiReply=result.reply;
+        let reply=result.reply;
+        const replyNeedsLink=/issue.?report|sharepoint|subir.*archivo|upload.*file|sube.*los.*archivo|upload.*to/i.test(reply);
+        if(replyNeedsLink&&!spLink){
+            out.innerHTML='<div class="loading-msg">'+(esL?'Creando carpeta SharePoint...':'Creating SharePoint folder...')+'</div>';
+            spLink=await ensureSPFolder();
+            if(spLink){
+                const spLine=esL
+                    ?'\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink
+                    :'\n\nPlease upload the files to the following SharePoint folder:\n'+spLink;
+                const byeRx=new RegExp('(\\n\\n)('+rc.bye.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','i');
+                if(byeRx.test(reply))reply=reply.replace(byeRx,spLine+'$1$2');
+                else reply=reply.trimEnd()+spLine;
+            }
+        }
+        window._aiReply=reply;
         out.innerHTML='<div class="ai-result"><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#8b5cf6"><path d="M9.5 2l1.5 3.5L14.5 7l-3.5 1.5L9.5 12l-1.5-3.5L4.5 7l3.5-1.5zM19 11l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5L15 14.5l2.5-1zM9.5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg><span style="font:600 12px/1 var(--f);color:#8b5cf6">'+esc(result.provider)+'</span></div>'
-            +'<div class="rc-body open" style="max-height:none">'+esc(result.reply)+'</div>'
+            +'<div class="rc-body open" style="max-height:none">'+esc(reply)+'</div>'
             +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
             +'<button class="rc-copy" onclick="cpText(window._aiReply,this)">Copy to clipboard</button>'
             +'<button class="rc-copy btn-send" onclick="openSendModal(window._aiReply)">Send Reply</button>'
@@ -1930,7 +2006,18 @@ async function generateAI(provider,extraCtx){
             +'<button class="rc-copy" onclick="generateAI(\'ollama\',document.getElementById(\'ai-extra\').value.trim())" style="white-space:nowrap">'+(esL?'Regenerar':'Regenerate')+'</button>'
             +'</div></div>';
     }
+    if(spLink&&!initialSpLink)updateSPButton(D.cur.id,spLink);
     btns.forEach(b=>{b.disabled=false});
+}
+
+function updateSPButton(ticketId,link){
+    const old=document.getElementById('sp-btn-'+ticketId);
+    if(!old)return;
+    const g=document.createElement('span');
+    g.className='btn-group';
+    g.innerHTML='<a class="btn-fd btn-sp btn-gl" href="'+esc(link)+'" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>Open SharePoint Folder</a>'
+        +'<button class="btn-fd btn-sp btn-gr" onclick="copySPLink('+ticketId+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy link</button>';
+    old.replaceWith(g);
 }
 
 /* =============== ANALYSIS ENGINE =============== */
@@ -2159,6 +2246,14 @@ async function confirmSendReply(){
         if(!resp.ok){
             const err=await resp.json().catch(()=>({}));
             throw new Error(err.description||err.message||'Error '+resp.status);
+        }
+
+        if(D.cur.status===2&&D.aid){
+            await fetch('/fd/tickets/'+D.cur.id,{
+                method:'PUT',
+                headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},
+                body:JSON.stringify({status:3,responder_id:Number(D.aid)})
+            }).catch(function(){});
         }
 
         statusEl.className='send-modal-status ok';
