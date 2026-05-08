@@ -2185,10 +2185,31 @@ function cleanSignature(html){
     return filtered.join('<br>');
 }
 
+function _buildCcList(){
+    if(!D.cur)return[];
+    const s=new Set();
+    (D.cur.cc_emails||[]).forEach(function(e){s.add(e)});
+    (D.cur.reply_cc_emails||[]).forEach(function(e){s.add(e)});
+    (D.cur.ticket_cc_emails||[]).forEach(function(e){s.add(e)});
+    return Array.from(s).filter(function(e){return e&&e.indexOf('@')>0});
+}
+
 function openSendModal(text){
     if(!D.cur)return;
     const rc=window._replyCtx;
     const esL=rc&&rc.lang==='es';
+
+    const toEmail=D.cur.requester?D.cur.requester.email:'';
+    const ccList=_buildCcList();
+
+    var recipientsHtml='<label style="margin-top:0">'+(esL?'Para':'To')+'</label>'
+        +'<div style="font:12px var(--f);color:var(--g600);padding:4px 0">'+(toEmail?esc(toEmail):'—')+'</div>';
+    if(ccList.length){
+        recipientsHtml+='<label style="margin-top:8px">CC ('+ccList.length+')</label>'
+            +'<div style="font:12px var(--f);color:var(--g600);padding:4px 0;max-height:80px;overflow-y:auto">'
+            +ccList.map(function(e){return esc(e)}).join('<br>')+'</div>';
+    }
+
     const overlay=document.createElement('div');
     overlay.className='send-modal-overlay';
     overlay.id='send-modal-overlay';
@@ -2197,7 +2218,8 @@ function openSendModal(text){
         '<div class="send-modal">'
         +'<div class="send-modal-hdr"><h2>'+(esL?'Enviar Respuesta':'Send Reply')+' - #'+D.cur.id+'</h2><button class="close-btn" onclick="closeSendModal()">&times;</button></div>'
         +'<div class="send-modal-body">'
-        +'<label>'+(esL?'Respuesta (editable)':'Reply (editable)')+'</label>'
+        +recipientsHtml
+        +'<label style="margin-top:12px">'+(esL?'Respuesta (editable)':'Reply (editable)')+'</label>'
         +'<textarea id="send-modal-text">'+esc(text)+'</textarea>'
         +'<label style="margin-top:14px">'+(esL?'Firma del agente':'Agent signature')+'</label>'
         +'<div class="send-modal-sig"><a href="https://'+D.dom+'/a/tickets/'+D.cur.id+'">Ticket #'+D.cur.id+'</a>'
@@ -2238,13 +2260,10 @@ async function confirmSendReply(){
         bodyHtml+='<br><br><a href="'+ticketUrl+'">Ticket #'+D.cur.id+'</a>';
         if(D.sig)bodyHtml+='<br><br>'+cleanSignature(D.sig);
 
-        const ccSet=new Set();
-        (D.cur.cc_emails||[]).forEach(function(e){ccSet.add(e)});
-        (D.cur.reply_cc_emails||[]).forEach(function(e){ccSet.add(e)});
-        (D.cur.ticket_cc_emails||[]).forEach(function(e){ccSet.add(e)});
-        const ccArr=Array.from(ccSet).filter(function(e){return e&&e.indexOf('@')>0});
+        const ccArr=_buildCcList();
         const payload={body:bodyHtml};
         if(ccArr.length)payload.cc_emails=ccArr;
+        console.log('[send] cc_emails:', ccArr, 'payload:', JSON.stringify(payload).substring(0,200));
 
         const resp=await fetch('/fd/tickets/'+D.cur.id+'/reply',{
             method:'POST',
