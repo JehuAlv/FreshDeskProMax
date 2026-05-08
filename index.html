@@ -455,7 +455,7 @@ async function loadAll(){
         return Promise.all([lr,det]).then(function(r){
             D.lr[t.id]=!!r[0];
             t._reqName=r[1]&&r[1].requester?r[1].requester.name:'Unknown';
-            t._company=r[1]&&r[1].company?r[1].company.name:'';
+            t._company=r[1]?coName(r[1]):'';
             cache[t.id]={u:t.updated_at,lr:r[0],rn:t._reqName,co:t._company};
             tick();
         });
@@ -500,7 +500,7 @@ async function loadNewTickets(){
             return get('tickets/'+t.id+'?include=stats,requester,company').then(function(d){
                 var replied=!!(d.stats&&d.stats.agent_responded_at);
                 t._reqName=d.requester?d.requester.name:'Unknown';
-                t._company=d.company?d.company.name:'';
+                t._company=coName(d);
                 cache[t.id]={u:t.updated_at,rn:t._reqName,co:t._company,ar:d.stats?d.stats.agent_responded_at:null};
                 if(!replied)noReply.push(t);
             }).catch(function(){noReply.push(t)});
@@ -616,7 +616,7 @@ async function sel(id){
     document.getElementById('content').innerHTML='<div class="loading-msg">Loading</div>';
     try{
         const t=await get('tickets/'+id+'?include=requester,company');
-        t._company=t.company?t.company.name:'';
+        t._company=coName(t);
         let allConvs=[],pg=1;
         while(true){
             const page=await get('tickets/'+id+'/conversations?per_page=100&page='+pg);
@@ -2069,7 +2069,7 @@ async function doSearch(){
         if(/^\d+$/.test(q)){
             const t=await get('tickets/'+q+'?include=requester,company');
             t._reqName=t.requester?t.requester.name:'Unknown';
-            t._company=t.company?t.company.name:'';
+            t._company=coName(t);
             D.tks=[t];D.pg=1;D.pgs=1;
             rl();up();
             sel(t.id);
@@ -2088,6 +2088,7 @@ function up(){document.getElementById('pgr').style.display='flex';document.getEl
 
 /* =============== UTILS =============== */
 function st(m,ok){const e=document.getElementById('conn-status');e.textContent=m;e.className='conn-status'+(ok?' on':'')}
+function coName(t){return (t.company&&t.company.name)?t.company.name:(t.custom_fields&&t.custom_fields.cf_rand61013?t.custom_fields.cf_rand61013:'')}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function strip(h){const d=document.createElement('div');d.innerHTML=h;return d.textContent||''}
 function trunc(s,n){return s&&s.length>n?s.substring(0,n)+'…':s||''}
