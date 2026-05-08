@@ -2238,10 +2238,18 @@ async function confirmSendReply(){
         bodyHtml+='<br><br><a href="'+ticketUrl+'">Ticket #'+D.cur.id+'</a>';
         if(D.sig)bodyHtml+='<br><br>'+cleanSignature(D.sig);
 
+        const ccSet=new Set();
+        (D.cur.cc_emails||[]).forEach(function(e){ccSet.add(e)});
+        (D.cur.reply_cc_emails||[]).forEach(function(e){ccSet.add(e)});
+        (D.cur.ticket_cc_emails||[]).forEach(function(e){ccSet.add(e)});
+        const ccArr=Array.from(ccSet).filter(function(e){return e&&e.indexOf('@')>0});
+        const payload={body:bodyHtml};
+        if(ccArr.length)payload.cc_emails=ccArr;
+
         const resp=await fetch('/fd/tickets/'+D.cur.id+'/reply',{
             method:'POST',
             headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},
-            body:JSON.stringify({body:bodyHtml})
+            body:JSON.stringify(payload)
         });
 
         if(!resp.ok){
