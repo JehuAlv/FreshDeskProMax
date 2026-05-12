@@ -1188,10 +1188,22 @@ function buildIntentReply(intent,ctx,issueLow,kbHits,hi,bye,lang,l,firstName){
     return r[lang]||r.en;
 }
 
+function nameFromEmail(fe){
+    if(!fe)return null;
+    var nameMatch=fe.match(/^"?([^"<]+)"?\s*</);
+    if(nameMatch){var n=nameMatch[1].trim();if(n&&n.indexOf('@')<0)return n.split(' ')[0]}
+    var plain=fe.replace(/[<>]/g,'').trim();
+    if(plain.indexOf('@')>=0){var local=plain.split('@')[0];var parts=local.split(/[._-]/);if(parts.length>=1){var name=parts[0].charAt(0).toUpperCase()+parts[0].slice(1);if(name.length>1)return name}}
+    return null;
+}
+
 function replyHTML(t,c){
     const m=msgs(t,c),a=ana(t,m);
     const nm=t.requester?t.requester.name:'Customer';
-    const firstName=(nm.split(' ')[0]||nm);
+    const reqFirst=(nm.split(' ')[0]||nm);
+    const lastCustMsg=m.filter(x=>x.f==='Customer');
+    const lastWho=lastCustMsg.length?lastCustMsg[lastCustMsg.length-1].who:null;
+    const firstName=(lastWho&&lastWho!==nm)?lastWho.split(' ')[0]:reqFirst;
     const subj=t.subject||'your request';
     const allCust=m.filter(x=>x.f==='Customer');
     const allAgent=m.filter(x=>x.f==='Agent');
@@ -1653,7 +1665,7 @@ function replyHTML(t,c){
     const lastMsg=pubMsgs.length?pubMsgs[pubMsgs.length-1]:null;
     if(lastMsg){
         const isC=lastMsg.f==='Customer';
-        const lbl=isC?firstName:'Agent';
+        const lbl=isC?(lastMsg.who||firstName):'Agent';
         const clr=isC?'var(--orange)':'var(--blue)';
         const bg=isC?'var(--orange-bg)':'var(--blue-bg)';
         const cleanTxt=cleanEmailBody(lastMsg.t);
@@ -1831,19 +1843,21 @@ function aiPrompt(rc,extraCtx,spLink){
         if(ct.match(/ya.*reuni[oó]n|en la reuni[oó]n|ya.*conectad|ready.*connect|in the meeting|joined.*meeting|ya.*sesión|in the session|ya.*call|on the call|listo para conect|ready for.*session|estoy.*reuni[oó]n|estoy.*sesión|ya.*listo.*conect|me encuentro.*reuni[oó]n|estoy en la.*sala|i.?m in the.*room|waiting.*you|esperando/i))
             action='Customer is WAITING in meeting/session. Reply in ONE sentence MAX: "En un momento me conecto." / "Connecting now." Do NOT ask questions.';
         else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good|no more issue|sin novedad|ya qued[oó]/i))
-            action='Customer confirms resolved. Thank them briefly: "Me da gusto saber que se resolvió." / "Glad to hear it\'s resolved." Do NOT mention closing the ticket — the agent handles that separately.';
+            action='Customer says things are working/resolved. Write a warm, personalized response (3-4 sentences). Reference what they specifically did or confirmed (e.g. "the new version", "the update", "the configuration change"). Tell them you are glad it worked. Offer your continued support if anything comes up. Do NOT mention closing, pending, or managing the ticket status. Do NOT just say "glad to hear" and nothing else — add substance.';
         else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña|anydesk|\d{9,}/i))
             action='Customer shared TV credentials. Say: "Recibido, enseguida nos conectamos." / "Received, connecting now." ONE sentence.';
+        else if(ct.match(/should i|shall i|do you want me|debo|quieres que|le hago|go ahead|\?.*apply|\?.*install|\?.*proceed|\?.*continue/i))
+            action='Customer is asking whether to proceed with something. Answer their question directly (yes/no + brief reason). If they also shared files/images, acknowledge those too.';
+        else if(ct.match(/question|pregunta|how do|cómo puedo|how can|can you|could you|podrías|puedes|es posible|is it possible|what is|qué es|cuál es|where|dónde/i))
+            action='Customer asked a question. Answer it directly. If unsure, say you will check: "Lo verifico y te confirmo." / "Let me check and confirm." If they also shared files/images, acknowledge those too.';
         else if(provided==='logs'||provided==='screenshots'||provided==='files'||(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)|sharing|sent.*you|envié/i))||hasImages)
-            action='Customer shared info/files. Say: "Gracias, revisaré lo enviado y te doy seguimiento." / "Thanks, I will review and follow up." Keep it to 1-2 sentences.';
+            action='Customer shared info/files. Acknowledge and say you will review. If they also asked a question or mentioned something specific, address that too — do not just say "I will review".';
         else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same|mismo|continues|continúa/i))
             action='Problem persists. Ask for remote session: "¿Me puedes compartir acceso remoto para revisarlo directamente?" / "Could you share remote credentials so I can take a look?"';
         else if(provided==='installed'||ct.match(/done|listo|installed|instalé|ya.*cargué|applied|apliqué|loaded|ya lo hice|already did/i))
             action='Customer completed requested action. Ask: "¿Todo funcionando correctamente?" / "Is everything working properly now?"';
         else if(ct.match(/status|update|avance|estado|progress|follow|novedad|cuando|how.*going|cómo va/i))
             action='Status request. Be honest and direct. If reviewing, say so. If waiting on something, say what.';
-        else if(ct.match(/question|pregunta|can you|could you|podrías|puedes|es posible|is it possible|how do|cómo puedo|how can/i))
-            action='Answer directly. If unsure, say you will check: "Lo verifico y te confirmo." / "Let me check and I will confirm."';
         else if(ct.match(/send.*meeting|envía.*invite|inv[ií]tame|send.*invite|calendar|teams.*link|zoom.*link/i))
             action='Customer asks for meeting invite. Confirm: "Claro, envío la invitación a tu correo." / "Sure, I will send the invite to your email."';
         else action='Read the customer message carefully and respond naturally. Do NOT default to asking for Issue Report or serial number — only ask if relevant to a NEW problem being reported.';
@@ -1862,7 +1876,8 @@ function aiPrompt(rc,extraCtx,spLink){
 
 FORMATO:
 - Empieza con: ${rc.hi},
-- 1-4 oraciones. BREVE y directo. Tuteo ("tú"). Longitud ideal: 100-300 caracteres.
+- 2-5 oraciones. Natural y con sustancia — no seco, no genérico. Tuteo ("tú"). Longitud ideal: 200-500 caracteres.
+- Cuando el cliente haga una pregunta técnica, da una respuesta con opciones concretas y sugiere agendar una junta si el tema es complejo.
 - Termina con: ${rc.bye}
 - NADA después de "${rc.bye}". Sin firma, sin nombre, sin cargo.
 
@@ -1873,10 +1888,11 @@ REGLAS:
 - NO inventes soluciones — si no sabes, ofrece revisar o sesión remota
 - Pide UNA cosa a la vez (no bombardear con 3 preguntas)
 - Si el cliente solo confirma algo (ej: "ya estoy en la reunión"), responde en UNA oración
+- Cuando sea un tema complejo o desarrollo, ofrece agendar una junta para discutirlo
 - Si el cliente dice gracias/resuelto, agradece brevemente. NUNCA menciones cerrar el ticket ni "procederé a cerrar" — eso lo hace el agente con otro botón
 - Si el cliente reporta error: pide Issue Report (BRM > Help > Issue Report)
 - Si necesitas ver algo: pide acceso remoto (TeamViewer)
-- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "Con gusto", "Procederé a cerrar este ticket", "cerrar este ticket", "close this ticket"${imgRule}
+- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "Con gusto", "Procederé a cerrar este ticket", "cerrar este ticket", "close this ticket", "mantendré este ticket", "keep this ticket", "ticket pending", "ticket abierto"${imgRule}
 
 FRASES REALES DEL EQUIPO (usa estas como base, adapta al contexto):
 Sesión remota:
@@ -1914,7 +1930,8 @@ KBR/desarrollo:
 
 FORMAT:
 - Start with: ${rc.hi},
-- 1-4 sentences. BRIEF and direct. Ideal length: 100-300 characters.
+- 2-5 sentences. Natural and substantive — not dry, not generic. Ideal length: 200-500 characters.
+- When the customer asks a technical question, give a concrete answer with options and suggest scheduling a call if the topic is complex.
 - End with: ${rc.bye}
 - NOTHING after "${rc.bye}". No signature, no name, no title.
 
@@ -1925,10 +1942,11 @@ RULES:
 - Do NOT invent solutions — if unsure, offer to review or schedule remote session
 - Ask for ONE thing at a time (do not bombard with 3 questions)
 - If customer just confirms something (e.g. "I'm in the meeting"), reply in ONE sentence
+- For complex topics or development requests, offer to schedule a call to discuss further
 - If customer says thanks/resolved, thank them briefly. NEVER mention closing the ticket or "I will proceed to close" — the agent handles that separately
 - If customer reports error: ask for Issue Report (BRM > Help > Issue Report)
 - If you need to see something: ask for remote access (TeamViewer)
-- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I hope you are doing well", "I hope you are doing great", "I will proceed to close this ticket", "close this ticket", "cerrar este ticket"${imgRule}
+- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I hope you are doing well", "I hope you are doing great", "I will proceed to close this ticket", "close this ticket", "cerrar este ticket", "keep this ticket", "ticket pending", "mantendré este ticket", "ticket abierto"${imgRule}
 
 REAL TEAM PHRASES (use these as base, adapt to context):
 Remote session:
@@ -2026,7 +2044,7 @@ async function tryOllama(sys,usr){
     const resp=await fetch('/ollama',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.3,num_predict:400,num_ctx:8192,top_p:0.85,repeat_penalty:1.2}})
+        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.3,num_predict:500,num_ctx:8192,top_p:0.85,repeat_penalty:1.2}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
     const data=await resp.json();
@@ -2119,8 +2137,13 @@ function updateSPButton(ticketId,link){
 function msgs(t,c){
     const r=[];
     const desc=t.description_text||strip(t.description||'');
-    if(desc)r.push({f:'Customer',t:desc,d:t.created_at});
-    c.forEach(x=>{r.push({f:x.private?'Note':(x.incoming?'Customer':'Agent'),t:x.body_text||strip(x.body||''),d:x.created_at})});
+    const reqName=t.requester?t.requester.name:'Customer';
+    if(desc)r.push({f:'Customer',t:desc,d:t.created_at,who:reqName});
+    c.forEach(x=>{
+        const f=x.private?'Note':(x.incoming?'Customer':'Agent');
+        const who=x.incoming?nameFromEmail(x.from_email)||reqName:(x.from_email||'Agent');
+        r.push({f:f,t:x.body_text||strip(x.body||''),d:x.created_at,who:who});
+    });
     return r;
 }
 
