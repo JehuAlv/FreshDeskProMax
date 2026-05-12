@@ -1665,8 +1665,12 @@ function replyHTML(t,c){
             +'<div style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
     }
 
-    h+='<button class="ai-btn" onclick="generateAI(\'ollama\')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 2l1.5 3.5L14.5 7l-3.5 1.5L9.5 12l-1.5-3.5L4.5 7l3.5-1.5zM19 11l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5L15 14.5l2.5-1zM9.5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>'
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        +'<button class="ai-btn" onclick="generateAI(\'ollama\')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 2l1.5 3.5L14.5 7l-3.5 1.5L9.5 12l-1.5-3.5L4.5 7l3.5-1.5zM19 11l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5L15 14.5l2.5-1zM9.5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>'
         +(lang==='es'?'Generar respuesta con IA':'Generate reply with AI')+'</button>'
+        +'<button class="ai-btn" style="background:linear-gradient(135deg,#ef4444,#dc2626)" onclick="openCloseTicket()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>'
+        +(lang==='es'?'Cerrar Ticket':'Close Ticket')+'</button>'
+        +'</div>'
         +'<div id="ai-out"></div>';
 
     for(const[g,items]of Object.entries(G)){
@@ -2283,7 +2287,19 @@ function _buildCcList(){
     return Array.from(s).filter(function(e){return e&&e.indexOf('@')>0});
 }
 
-function openSendModal(text){
+function openCloseTicket(){
+    const rc=window._replyCtx;
+    const esL=rc&&rc.lang==='es';
+    const msg=esL
+        ?'De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos nuevamente a nuestro correo oficial de soporte kya_support@kohyoung.com.'
+        :'We will proceed to close this ticket now. If you ever require support in the future, feel free to reach out by sending a new email to our official support mail at kya_support@kohyoung.com.';
+    const hi=rc?rc.hi:(esL?'Hola':'Hello');
+    const bye=rc?rc.bye:(esL?'Saludos cordiales':'Best regards');
+    openSendModal(hi+',\n\n'+msg+'\n\n'+bye,true);
+}
+
+function openSendModal(text,resolveOnSend){
+    window._resolveOnSend=!!resolveOnSend;
     if(!D.cur)return;
     const rc=window._replyCtx;
     const esL=rc&&rc.lang==='es';
@@ -2305,7 +2321,7 @@ function openSendModal(text){
     overlay.onclick=function(e){if(e.target===overlay)closeSendModal()};
     overlay.innerHTML=
         '<div class="send-modal">'
-        +'<div class="send-modal-hdr"><h2>'+(esL?'Enviar Respuesta':'Send Reply')+' - #'+D.cur.id+'</h2><button class="close-btn" onclick="closeSendModal()">&times;</button></div>'
+        +'<div class="send-modal-hdr"><h2>'+(window._resolveOnSend?(esL?'Cerrar Ticket':'Close Ticket'):(esL?'Enviar Respuesta':'Send Reply'))+' - #'+D.cur.id+'</h2><button class="close-btn" onclick="closeSendModal()">&times;</button></div>'
         +'<div class="send-modal-body">'
         +recipientsHtml
         +'<label style="margin-top:12px">'+(esL?'Respuesta (editable)':'Reply (editable)')+'</label>'
@@ -2317,13 +2333,14 @@ function openSendModal(text){
         +'<div class="send-modal-footer">'
         +'<span class="send-modal-status" id="send-modal-status"></span>'
         +'<button class="sm-btn sm-cancel" onclick="closeSendModal()">'+(esL?'Cancelar':'Cancel')+'</button>'
-        +'<button class="sm-btn sm-send" id="send-modal-confirm" onclick="confirmSendReply()">'+(esL?'Enviar':'Send')+'</button>'
+        +'<button class="sm-btn sm-send" id="send-modal-confirm" style="'+(window._resolveOnSend?'background:linear-gradient(135deg,#ef4444,#dc2626)':'')+'" onclick="confirmSendReply()">'+(window._resolveOnSend?(esL?'Enviar y Cerrar':'Send & Close'):(esL?'Enviar':'Send'))+'</button>'
         +'</div></div>';
     document.body.appendChild(overlay);
     setTimeout(()=>{document.getElementById('send-modal-text').focus()},100);
 }
 
 function closeSendModal(){
+    window._resolveOnSend=false;
     const o=document.getElementById('send-modal-overlay');
     if(o)o.remove();
 }
@@ -2363,7 +2380,14 @@ async function confirmSendReply(){
             throw new Error(err.description||err.message||'Error '+resp.status);
         }
 
-        if(D.cur.status===2&&D.aid){
+        if(window._resolveOnSend){
+            await fetch('/fd/tickets/'+D.cur.id,{
+                method:'PUT',
+                headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},
+                body:JSON.stringify({status:4})
+            }).catch(function(){});
+            D.cur.status=4;
+        }else if(D.cur.status===2&&D.aid){
             await fetch('/fd/tickets/'+D.cur.id,{
                 method:'PUT',
                 headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},
@@ -2372,16 +2396,23 @@ async function confirmSendReply(){
         }
 
         statusEl.className='send-modal-status ok';
-        statusEl.textContent=esL?'Enviado correctamente':'Reply sent successfully';
+        statusEl.textContent=window._resolveOnSend
+            ?(esL?'Enviado y ticket cerrado':'Reply sent & ticket resolved')
+            :(esL?'Enviado correctamente':'Reply sent successfully');
         sendBtn.style.display='none';
 
-        D.lr[D.cur.id]=false;
-        if(D.fl===2)applyFilter();
-
-        setTimeout(()=>{
-            closeSendModal();
-            sel(D.cur.id);
-        },1200);
+        if(window._resolveOnSend){
+            D.allOpen=D.allOpen.filter(t=>t.id!==D.cur.id);
+            delete D.lr[D.cur.id];
+            D.pending.delete(D.cur.id);
+            savePending();
+            applyFilter();
+            setTimeout(()=>{closeSendModal();D.cur=null;document.getElementById('detail').innerHTML=''},1200);
+        }else{
+            D.lr[D.cur.id]=false;
+            if(D.fl===2)applyFilter();
+            setTimeout(()=>{closeSendModal();sel(D.cur.id)},1200);
+        }
     }catch(e){
         statusEl.className='send-modal-status err';
         statusEl.textContent=(esL?'Error: ':'Error: ')+e.message;
