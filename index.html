@@ -980,16 +980,33 @@ function extractBody(text){
 
 function detectLang(m,subject){
     const custRaw=m.filter(x=>x.f==='Customer').map(x=>cleanEmailBody(x.t));
+    const agentRaw=m.filter(x=>x.f==='Agent').map(x=>cleanEmailBody(x.t));
     const lastCust=custRaw.length?custRaw[custRaw.length-1]:'';
     const trimmed=lastCust.trim();
-    if(/^(hola|buenos?\s*d[ií]as?|buen d[ií]a|estimad)/i.test(trimmed))return 'es';
-    if(/^(hi|hello|good\s*(morning|afternoon|evening)|dear)/i.test(trimmed))return 'en';
-    const all=trimmed.length>20?trimmed.toLowerCase():(custRaw.join(' ').toLowerCase()||((subject||'')).toLowerCase());
-    const esWords=(all.match(/\b(gracias|por favor|adjunto|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|solicitud|actualización|instalación|calibración|verificar|configuración|revisamos|pendiente|sesión|remota|disponibilidad|horario|versión|compartir|funciona|sirve|errores|pregunta|requiere|soporte|también|correo|información|sistema|estamos|programa|proceso|datos|cambios|nuevo|nueva)\b/gi)||[]).length;
-    const enWords=(all.match(/\b(thank you|thanks|please|attached|issue|machine|review|kindly|appreciate|follow up|looking forward|availability|schedule|screenshot|resolve|investigate|version|working|error|update|install|check|would|could|should|also|about|have|need|want|with|from|this|that|were|been|will|configuration|export|file|send|share)\b/gi)||[]).length;
+    if(/^(hola|buenos?\s*d[ií]as?|buen d[ií]a|estimad|que tal|saludos)/i.test(trimmed))return 'es';
+    if(/^(hi\b|hello|good\s*(morning|afternoon|evening)|dear|hey\b)/i.test(trimmed))return 'en';
+
+    const lastAgent=agentRaw.length?agentRaw[agentRaw.length-1]:'';
+    if(lastAgent){
+        const aLow=lastAgent.toLowerCase();
+        if(/^(hola|que tal|buen)/i.test(aLow.trim())||/saludos cordiales/i.test(aLow))return 'es';
+        if(/^(hi\b|hello|hey\b)/i.test(aLow.trim())||/best regards/i.test(aLow))return 'en';
+    }
+
+    const custAll=custRaw.join(' ').toLowerCase();
+    const all=trimmed.length>20?trimmed.toLowerCase():(custAll||((subject||'')).toLowerCase());
+    const esWords=(all.match(/\b(gracias|por favor|adjunto|problema|máquina|equipo|archivo|enviamos|le comparto|comentar|necesito|tenemos|podría|podemos|favor de|muchas gracias|de antemano|solicitud|actualización|instalación|calibración|verificar|configuración|revisamos|pendiente|sesión|remota|disponibilidad|horario|versión|compartir|funciona|sirve|errores|pregunta|requiere|soporte|también|correo|información|sistema|estamos|programa|proceso|datos|cambios|nuevo|nueva|buenos|buenas|quiero|cuando|donde|como|aquí|esto|puede|favor|cuál|alguna|todas|nuestro|nuestra|estoy|tengo|hemos)\b/gi)||[]).length;
+    const enWords=(all.match(/\b(thank you|thanks|please|attached|issue|machine|review|kindly|appreciate|follow up|looking forward|availability|schedule|screenshot|resolve|investigate|working|update|install|check|would|could|should|configuration|export|regarding|requested|assistance|forwarding|unfortunately|currently|however|actually|already)\b/gi)||[]).length;
+
     if(esWords===0&&enWords===0){
         const esChars=(all.match(/[áéíóúüñ¿¡]/g)||[]).length;
-        if(esChars>=2)return 'es';
+        if(esChars>=1)return 'es';
+
+        if(custAll.length<30&&subject){
+            const subLow=subject.toLowerCase();
+            const subEs=(subLow.match(/[áéíóúüñ¿¡]|solicitud|problema|falla|configuración|instalación|máquina|equipo/g)||[]).length;
+            if(subEs>=1)return 'es';
+        }
     }
     return esWords>enWords?'es':'en';
 }
