@@ -865,7 +865,28 @@ const KB=[
         en:'Known error: "Inspection Result is Invalid" with Component_Defect constraint error. There are ComponentGUID values in the Defect table that do not exist in the Component table. Fix: disable "Save Barcode on Component Always(NG + GOOD)" in AOI GUI > Settings > Data/Export.'},
     {id:'brmServiceStop',kw:/failed.*stop.*service|no.*puede.*detener.*servicio|service.*stop.*fail|lodctr/i,
         es:'Error conocido: "Failed to stop service." Se soluciona ejecutando en CMD como administrador: lodctr /R',
-        en:'Known error: "Failed to stop service." Fix by running in CMD as administrator: lodctr /R'}
+        en:'Known error: "Failed to stop service." Fix by running in CMD as administrator: lodctr /R'},
+    {id:'jobValidation',kw:/job.?valid|ky.?validator|tolerance.*valid|validar.*programa|program.*valid|validation.*tool/i,
+        es:'La función de Job Validation / KY Validator se configura en el KBR. ¿Podrías compartir el número de serie del equipo y la versión de GUI para verificar compatibilidad?',
+        en:'The Job Validation / KY Validator function is configured in the KBR. Could you share the machine serial number and GUI version to verify compatibility?'},
+    {id:'guiVersion',kw:/gui.*version|versi[oó]n.*gui|what.*version|qué.*versi[oó]n|current.*version|versión.*actual|which.*version|cuál.*versión/i,
+        es:'¿Me podrías confirmar qué versión de GUI están utilizando? Puedes verificarlo en la GUI > Help > About.',
+        en:'Could you please confirm which GUI version you are running? You can check it in GUI > Help > About.'},
+    {id:'noLogGenerated',kw:/no.*genera.*log|log.*not.*generat|not.*creating.*log|no.*crea.*log|missing.*log|log.*faltante|log.*missing/i,
+        es:'Si la máquina no genera logs en algunas piezas, puede ser un problema de configuración del file export en BRM. ¿Podrías compartir acceso remoto para revisar la configuración?',
+        en:'If the machine is not generating logs for some boards, it may be a file export configuration issue in BRM. Could you share remote access so we can check the configuration?'},
+    {id:'plcIntegration',kw:/plc.*integrat|plc.*connect|panasonic.*plc|siemens.*plc|integración.*plc|plc.*comunic/i,
+        es:'La integración con PLC se configura mediante el plugin de PLC en BRM. ¿Podrías compartirnos el modelo del PLC y la documentación del protocolo de comunicación?',
+        en:'PLC integration is configured through the PLC plugin in BRM. Could you share the PLC model and the communication protocol documentation?'},
+    {id:'ksmart',kw:/ksmart.*client|ksmart.*not.*start|ksmart.*won.?t|ksmart.*crash|ksmart.*error|ksmart.*service/i,
+        es:'Si KSmart Client no inicia, verificar que el servicio KSmartService esté corriendo en Services. Si el servicio se detuvo, intentar reiniciar el servicio y verificar los logs.',
+        en:'If KSmart Client won\'t start, verify that the KSmartService is running in Services. If the service stopped, try restarting it and check the logs.'},
+    {id:'itacIntegration',kw:/itac|i.?tac.*integrat|itac.*error|itac.*connect|itac.*upload|itac.*migration/i,
+        es:'La integración con iTAC se realiza mediante el plugin de iTAC en BRM. ¿Podrías compartir acceso remoto para verificar la configuración del plugin y las credenciales de conexión?',
+        en:'iTAC integration is done through the iTAC plugin in BRM. Could you share remote access to verify the plugin configuration and connection credentials?'},
+    {id:'reviewStation',kw:/review.*station|estación.*review|review.*not.*work|review.*no.*funciona|review.*issue|review.*problem|operator.*review/i,
+        es:'¿Podrías verificar que BRM esté corriendo en la Review Station y que la configuración del KBR incluya los eventos de Review? Compartir acceso remoto nos ayudaría a revisar.',
+        en:'Could you verify that BRM is running on the Review Station and that the KBR configuration includes the Review events? Sharing remote access would help us check.'}
 ];
 
 function matchKB(text,alreadyUsed){
@@ -1748,48 +1769,52 @@ function aiPrompt(rc,extraCtx,spLink){
 
     const isWaiting=D.fl===3;
     const hasImages=rc.ctx.customerSentImages;
+    const asked=rc.ctx.agentAskedFor;
+    const provided=rc.ctx.customerProvided;
     let action='';
     if(isWaiting&&lastAgent){
         const agentText=cleanEmailBody(lastAgent.t).toLowerCase();
         if(agentText.match(/teamviewer|remote|session|sesión|conectar/i))
-            action='Follow up: ask if they are available for the remote session you proposed';
+            action='Follow up: ask if they are available for the remote session you proposed. Be brief: "¿Pudieron verificar lo anterior?" / "Were you able to check on this?"';
         else if(agentText.match(/issue.*report|log|registro|reporte/i))
-            action='Follow up: ask if they were able to gather the logs/issue report you requested';
+            action='Follow up: ask if they were able to gather the logs/issue report you requested. Keep it short.';
         else if(agentText.match(/kbr|apply|install|aplicar|instalar/i))
-            action='Follow up: ask if they applied the KBR and if everything is working';
+            action='Follow up: ask if they applied the KBR and if everything is working correctly.';
         else if(agentText.match(/screenshot|captura|imagen/i))
-            action='Follow up: ask if they were able to get the screenshots you requested';
+            action='Follow up: ask if they were able to get the screenshots you requested.';
         else
-            action='Follow up: politely ask for a status update on your last message';
+            action='Follow up briefly: "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte?" / "Following up, do you still need assistance?"';
     }else if(!lastAgent){
-        if(rc.ctx.isUrgent)action='This is URGENT (line down/production stopped). Ask for TeamViewer credentials for immediate remote session.';
-        else if(rc.ctx.isError&&hasImages)action='Customer reported an error with screenshots you cannot see. Acknowledge images, ask for serial number and BRM Issue Report.';
-        else if(rc.ctx.isError)action='Customer reported an error. Ask for BRM Issue Report (BRM > Help > Issue Report). Ask them to upload to the SharePoint folder.';
-        else if(rc.ctx.isQuote)action='Acknowledge receipt, say you will review requirements and share estimated timeline.';
-        else if(hasImages)action='Customer sent images you cannot see. Acknowledge receipt, ask for text description of what the images show, or offer remote session.';
-        else action='Respond to the customer request. If unclear, ask specific clarifying questions (serial number, machine type, what behavior they expect).';
+        if(rc.ctx.isUrgent)action='URGENT (line down). Ask for TeamViewer credentials NOW: "¿Me puedes compartir las credenciales de TeamViewer? Lo revisamos de inmediato." / "Could you share the TeamViewer credentials? I will look into this right away."';
+        else if(rc.ctx.isError&&hasImages)action='Customer reported error with images you CANNOT see. Acknowledge, ask for Issue Report and serial number. Offer remote session.';
+        else if(rc.ctx.isError)action='Customer reported an error. Ask for: 1) Issue Report (BRM > Help > Issue Report), 2) serial number if not provided. Keep it direct.';
+        else if(rc.ctx.isQuote)action='Acknowledge receipt. Say you will review requirements and share timeline: "Confirmo de recibido. Revisaré los requerimientos."';
+        else if(hasImages)action='Customer sent images you CANNOT see. Acknowledge receipt. Ask what the images show or offer remote session to see directly.';
+        else action='Respond to the customer request. If unclear, ask ONE specific question (serial number, OR remote access, OR what behavior they expect). Do NOT ask for Issue Report unless they report an actual error.';
     }else if(lastMsg&&lastMsg.f==='Customer'){
         const ct=lastCust?cleanEmailBody(lastCust.t).toLowerCase():'';
-        if(ct.match(/ya.*reuni[oó]n|en la reuni[oó]n|ya.*conectad|ready.*connect|in the meeting|joined.*meeting|ya.*sesión|in the session|ya.*call|on the call|listo para conect|ready for.*session|estoy.*reuni[oó]n|estoy.*sesión|ya.*listo|me encuentro.*reuni[oó]n/i))
-            action='Customer is ready/waiting in a meeting or remote session. Reply BRIEFLY: say you are connecting now. Example: "En un momento me conecto." / "I will connect shortly."';
-        else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good/i))
-            action='Thank them briefly. Offer to close the ticket. Use: "Procederé a cerrar este ticket" / "I will proceed to close this ticket"';
-        else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña|anydesk/i))
-            action='Customer shared remote credentials. Confirm receipt and say you will connect shortly.';
-        else if(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)|sharing/i)||hasImages)
-            action='Customer shared files/images. Say "Gracias por compartir la información, revisaré lo enviado y te doy seguimiento." / "Thank you for sharing, I will review and follow up."';
-        else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same|mismo/i))
-            action='Problem persists. Suggest remote session: ask for TeamViewer credentials, or ask for updated Issue Report.';
-        else if(ct.match(/done|listo|installed|instalé|ya.*cargué|applied|apliqué|loaded/i))
-            action='Customer completed an action you requested. Ask if everything is working now.';
-        else if(ct.match(/status|update|avance|estado|progress|follow|novedad|cuando/i))
-            action='Customer asks for update. Provide honest status or say you are reviewing and will follow up.';
-        else if(ct.match(/question|pregunta|can you|could you|podrías|puedes|es posible|is it possible/i))
-            action='Answer the customer question directly. If you do not know, say you will check and follow up.';
-        else action='Respond to what the customer said. Read the conversation context carefully. Do NOT ask for Issue Report or serial number unless the customer is reporting a NEW problem.';
+        if(ct.match(/ya.*reuni[oó]n|en la reuni[oó]n|ya.*conectad|ready.*connect|in the meeting|joined.*meeting|ya.*sesión|in the session|ya.*call|on the call|listo para conect|ready for.*session|estoy.*reuni[oó]n|estoy.*sesión|ya.*listo.*conect|me encuentro.*reuni[oó]n|estoy en la.*sala|i.?m in the.*room|waiting.*you|esperando/i))
+            action='Customer is WAITING in meeting/session. Reply in ONE sentence MAX: "En un momento me conecto." / "Connecting now." Do NOT ask questions.';
+        else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good|no more issue|sin novedad|ya qued[oó]/i))
+            action='Customer confirms resolved. Thank briefly and close: "Procederé a cerrar este ticket. Si necesitan soporte, contactarnos a kya_support@kohyoung.com." / "I will proceed to close this ticket."';
+        else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña|anydesk|\d{9,}/i))
+            action='Customer shared TV credentials. Say: "Recibido, enseguida nos conectamos." / "Received, connecting now." ONE sentence.';
+        else if(provided==='logs'||provided==='screenshots'||provided==='files'||(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)|sharing|sent.*you|envié/i))||hasImages)
+            action='Customer shared info/files. Say: "Gracias, revisaré lo enviado y te doy seguimiento." / "Thanks, I will review and follow up." Keep it to 1-2 sentences.';
+        else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same|mismo|continues|continúa/i))
+            action='Problem persists. Ask for remote session: "¿Me puedes compartir acceso remoto para revisarlo directamente?" / "Could you share remote credentials so I can take a look?"';
+        else if(provided==='installed'||ct.match(/done|listo|installed|instalé|ya.*cargué|applied|apliqué|loaded|ya lo hice|already did/i))
+            action='Customer completed requested action. Ask: "¿Todo funcionando correctamente?" / "Is everything working properly now?"';
+        else if(ct.match(/status|update|avance|estado|progress|follow|novedad|cuando|how.*going|cómo va/i))
+            action='Status request. Be honest and direct. If reviewing, say so. If waiting on something, say what.';
+        else if(ct.match(/question|pregunta|can you|could you|podrías|puedes|es posible|is it possible|how do|cómo puedo|how can/i))
+            action='Answer directly. If unsure, say you will check: "Lo verifico y te confirmo." / "Let me check and I will confirm."';
+        else if(ct.match(/send.*meeting|envía.*invite|inv[ií]tame|send.*invite|calendar|teams.*link|zoom.*link/i))
+            action='Customer asks for meeting invite. Confirm: "Claro, envío la invitación a tu correo." / "Sure, I will send the invite to your email."';
+        else action='Read the customer message carefully and respond naturally. Do NOT default to asking for Issue Report or serial number — only ask if relevant to a NEW problem being reported.';
     }else{
         action=rc.ctx.pendingAction?'Follow up on: '+rc.ctx.pendingAction
-            :'Ask if the issue is resolved or if they need further assistance.';
+            :'Ask briefly if the issue is resolved: "¿El problema persiste?" / "Is the issue still occurring?"';
     }
 
     const imgRule=hasImages?(esL
@@ -1802,7 +1827,7 @@ function aiPrompt(rc,extraCtx,spLink){
 
 FORMATO:
 - Empieza con: ${rc.hi},
-- 2-5 oraciones. Directo, amigable, tuteo ("tú"). Sin rodeos.
+- 1-4 oraciones. BREVE y directo. Tuteo ("tú"). Longitud ideal: 100-300 caracteres.
 - Termina con: ${rc.bye}
 - NADA después de "${rc.bye}". Sin firma, sin nombre, sin cargo.
 
@@ -1811,33 +1836,49 @@ REGLAS:
 - Responde SOLO al último mensaje del cliente
 - NO repitas lo que el cliente ya dijo
 - NO inventes soluciones — si no sabes, ofrece revisar o sesión remota
-- Cuando pidas información, sé específico: número de serie, Issue Report de BRM, capturas concretas
-- Si el cliente reporta un error, pide el Issue Report (BRM > Help > Issue Report)
-- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos"${imgRule}
+- Pide UNA cosa a la vez (no bombardear con 3 preguntas)
+- Si el cliente solo confirma algo (ej: "ya estoy en la reunión"), responde en UNA oración
+- Si el cliente dice gracias/resuelto, cierra el ticket
+- Si el cliente reporta error: pide Issue Report (BRM > Help > Issue Report)
+- Si necesitas ver algo: pide acceso remoto (TeamViewer)
+- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "Con gusto"${imgRule}
 
-FRASES REALES DEL EQUIPO (usa estas, no inventes):
-- "¿Nos podrías compartir el Issue Report de BRM?"
+FRASES REALES DEL EQUIPO (usa estas como base, adapta al contexto):
+Sesión remota:
 - "¿Me puedes compartir las credenciales de TeamViewer?"
-- "Lo revisaré y te doy seguimiento."
-- "Me da gusto saber que se resolvió. Procederé a cerrar este ticket."
-- "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte de nuestra parte?"
-- "De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos a kya_support@kohyoung.com."
+- "Enseguida nos conectamos."
+- "¿Nos podrías compartir acceso remoto a la máquina?"
+- "En un momento me conecto."
+- "Perfecto, en un momento estoy con ustedes."
+Pedir información:
+- "¿Nos podrías compartir el Issue Report de BRM?"
+- "¿Podrías compartir el número de serie del equipo?"
+- "¿Me podrías compartir los logs de BRM?"
+- "¿Podrías verificar las siguientes configuraciones?"
+Revisión/seguimiento:
+- "Revisaré lo enviado y te doy seguimiento."
+- "Lo revisamos!"
+- "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte?"
 - "Recibido, muchas gracias."
-- "Adjunto encontrarás [X]. Por favor sigue las instrucciones del manual adjunto."
+Cierre:
+- "De momento procederemos a cerrar este ticket. Si necesitan soporte en el futuro, no duden en contactarnos a kya_support@kohyoung.com."
+- "Me da gusto saber que se resolvió."
+Programar:
 - "Estaré disponible para conectarnos. Por favor comparte las credenciales de TeamViewer cuando estén listos."
-- "Hola, si claro, lo revisamos!"
-- "Gracias por compartir la información. Revisaré lo enviado y te doy seguimiento."
-- "¿Podrías validar que la siguiente configuración está correctamente seteada?"
-- "Es necesario conectarnos para verificar. ¿Qué día les es más favorable?"
-- Desarrollo: "Confirmo de recibido. Esperamos tenerlo listo en [tiempo], una vez terminado se compartirá por este medio."
-- Si archivo pesado: pedir que suban al folder de SharePoint del ticket
-- Reunión/sesión: "En un momento me conecto." o "Perfecto, en un momento estoy con ustedes."`
+- "¿Qué hora te parece bien para la sesión remota?"
+- "Por supuesto, avísame qué hora te parece bien y lo agendamos."
+SharePoint:
+- "Por favor sube los archivos al siguiente folder de SharePoint: [link]"
+KBR/desarrollo:
+- "Adjunto KBR para pruebas."
+- "Confirmo de recibido. Esperamos tenerlo listo en [tiempo]."
+- "Correcto, ambas implementaciones estarán presentes en el nuevo KBR."`
 
 :`You are a support agent for the KYA MES team at Koh Young Technology (BRM software for AOI/SPI inspection machines).
 
 FORMAT:
 - Start with: ${rc.hi},
-- 2-5 sentences. Direct and friendly. No fluff.
+- 1-4 sentences. BRIEF and direct. Ideal length: 100-300 characters.
 - End with: ${rc.bye}
 - NOTHING after "${rc.bye}". No signature, no name, no title.
 
@@ -1846,26 +1887,43 @@ RULES:
 - Respond ONLY to the customer's last message
 - Do NOT repeat what the customer already said
 - Do NOT invent solutions — if unsure, offer to review or schedule remote session
-- When asking for information, be specific: serial number, BRM Issue Report, specific screenshots
-- If the customer reports an error, ask for the Issue Report (BRM > Help > Issue Report)
-- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I hope you are doing well"${imgRule}
+- Ask for ONE thing at a time (do not bombard with 3 questions)
+- If customer just confirms something (e.g. "I'm in the meeting"), reply in ONE sentence
+- If customer says thanks/resolved, close the ticket
+- If customer reports error: ask for Issue Report (BRM > Help > Issue Report)
+- If you need to see something: ask for remote access (TeamViewer)
+- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I hope you are doing well", "I hope you are doing great"${imgRule}
 
-REAL TEAM PHRASES (use these, do not invent):
+REAL TEAM PHRASES (use these as base, adapt to context):
+Remote session:
+- "Could you please share the TeamViewer credentials?"
+- "Sure, we can connect now."
+- "Could you please provide remote credentials to check the machine?"
+- "I will connect shortly."
+- "I'm available, please send the TeamViewer ID and password."
+Asking for info:
 - "Could you please share the BRM Issue Report?"
-- "Could you share the TeamViewer credentials so we can take a look?"
-- "I will review it and follow up."
-- "Glad to hear it's resolved. I will proceed to close this ticket."
-- "I am following up on this ticket. Do you still need support from our side?"
-- "We will proceed to close this ticket. If you need support in the future, feel free to reach out at kya_support@kohyoung.com."
+- "Could you share the serial number of the machine?"
+- "Could you please share the logs?"
+- "Could you please verify the following configuration?"
+Review/follow-up:
+- "I will review and get back to you."
+- "Thank you for sharing. I will review and follow up."
+- "I am following up on this ticket. Do you still need support?"
 - "Received, thank you."
-- "Please find attached [X]. Follow the instructions in the attached manual."
-- "I will be available to connect. Please share the TeamViewer credentials when you are ready."
-- "Thank you for sharing the information. I will review and get back to you."
-- "Could you please verify that the configuration is properly set?"
-- "We need to connect to verify. When would be a good time for a remote session?"
-- Development: "Confirmed received. We expect to have it ready in [timeframe], once completed we will share it here."
-- Large file: ask them to upload to the ticket's SharePoint folder
-- Meeting/session: "I will connect shortly." or "Sounds good, connecting now."`;
+Closing:
+- "We will proceed to close this ticket. If you need support in the future, feel free to reach out at kya_support@kohyoung.com."
+- "Glad to hear it's resolved."
+Scheduling:
+- "I will be available to connect. Please share the TeamViewer credentials when ready."
+- "When would be a good time for the remote session?"
+- "Sure, please let me know what time works and we can schedule it."
+SharePoint:
+- "Please upload the files to the following SharePoint folder: [link]"
+KBR/development:
+- "Attached KBR for testing."
+- "Confirmed received. We expect to have it ready in [timeframe]."
+- "Sure, we can use this template for next KBR releases."`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
 
@@ -1931,7 +1989,7 @@ async function tryOllama(sys,usr){
     const resp=await fetch('/ollama',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.3,num_predict:600,num_ctx:8192,top_p:0.85,repeat_penalty:1.2}})
+        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.3,num_predict:400,num_ctx:8192,top_p:0.85,repeat_penalty:1.2}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
     const data=await resp.json();
@@ -2263,8 +2321,6 @@ async function confirmSendReply(){
         const ccArr=_buildCcList();
         const payload={body:bodyHtml};
         if(ccArr.length)payload.cc_emails=ccArr;
-        console.log('[send] cc_emails:', ccArr, 'payload:', JSON.stringify(payload).substring(0,200));
-
         const resp=await fetch('/fd/tickets/'+D.cur.id+'/reply',{
             method:'POST',
             headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom,'Content-Type':'application/json'},
