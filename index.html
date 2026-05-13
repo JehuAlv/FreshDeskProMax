@@ -49,6 +49,11 @@ nav .nbtn.ghost{background:none;color:var(--g600)}
 nav .nbtn.ghost:hover{background:var(--g100)}
 nav .conn-status{font:500 11px var(--f);color:var(--g400);white-space:nowrap}
 nav .conn-status.on{color:var(--green)}
+nav .ticket-stats{font:600 11px var(--f);color:var(--g500);white-space:nowrap;margin-left:8px;background:var(--g100);padding:2px 10px;border-radius:10px;cursor:default}
+nav .ticket-stats .pct{font-weight:700;padding:1px 6px;border-radius:8px;margin-left:2px}
+nav .ticket-stats .pct.green{background:#dcfce7;color:#16a34a}
+nav .ticket-stats .pct.amber{background:#fef3c7;color:#d97706}
+nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
 
 /* ===== LAYOUT ===== */
 .app{display:flex;height:calc(100vh - 52px)}
@@ -69,11 +74,12 @@ nav .conn-status.on{color:var(--green)}
 .tab-badge.bg-purple{background:#7c3aed}
 .tab-badge.bg-green{background:#1a8a3a}
 .tab-badge.bg-gray{background:var(--g400)}
-.list{flex:1;overflow-y:auto;padding:8px 0}
+.list{flex:1;overflow-y:auto;padding:8px 0;will-change:scroll-position}
 .list::-webkit-scrollbar{width:0;background:transparent}
 .tkt{
     display:flex;gap:12px;padding:12px 16px;cursor:pointer;
     border-bottom:0.5px solid var(--g100);transition:background .12s;position:relative;
+    contain:layout style;
 }
 .tkt:hover{background:var(--g50)}
 .tkt.active{background:var(--blue-bg)}
@@ -162,7 +168,7 @@ nav .conn-status.on{color:var(--green)}
 .action-strip{
     display:flex;align-items:center;gap:14px;padding:18px 20px;border-radius:var(--r);margin-bottom:20px;
     font:600 15px/1.3 var(--f);letter-spacing:-0.2px;
-    animation:fadeUp .4s ease;
+    animation:fadeUp .15s ease;
 }
 .action-strip .emoji{font-size:24px}
 .action-strip .desc{flex:1}
@@ -172,21 +178,21 @@ nav .conn-status.on{color:var(--green)}
 .action-strip.act-followup{background:linear-gradient(135deg,#fef2f2,#ffe4e6);color:#7f1d1d}
 .action-strip.act-new{background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e3a8a}
 
-.grid-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;animation:fadeUp .45s ease}
+.grid-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;animation:fadeUp .15s ease}
 .gs{background:var(--white);border-radius:var(--r2);padding:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .gs .n{font:700 24px var(--f);color:var(--blue);letter-spacing:-.5px}
 .gs .l{font:500 11px var(--f);color:var(--g500);margin-top:2px}
 
-.panel{background:var(--white);border-radius:var(--r);padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);animation:fadeUp .5s ease}
+.panel{background:var(--white);border-radius:var(--r);padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);animation:fadeUp .2s ease}
 .panel h2{font:600 11px var(--f);color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
 .panel p{font:14px/1.7 var(--f);color:var(--g700)}
 
-.steps-box{background:linear-gradient(135deg,#fffbeb,#fef9c3);border-radius:var(--r);padding:20px 22px;margin-bottom:16px;animation:fadeUp .47s ease}
+.steps-box{background:linear-gradient(135deg,#fffbeb,#fef9c3);border-radius:var(--r);padding:20px 22px;margin-bottom:16px;animation:fadeUp .15s ease}
 .steps-box h2{font:600 11px var(--f);color:#92400e;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
 .steps-box li{list-style:none;font:14px/1.7 var(--f);color:#78350f;padding:3px 0;display:flex;gap:8px}
 .steps-box li::before{content:"\2192";color:#d97706;font-weight:700}
 
-.exch-bubble{padding:12px 16px;border-radius:var(--r2);margin-bottom:8px;border-left:3px solid;font:13px/1.7 var(--f);animation:fadeUp .5s ease}
+.exch-bubble{padding:12px 16px;border-radius:var(--r2);margin-bottom:8px;border-left:3px solid;font:13px/1.7 var(--f);animation:fadeUp .15s ease}
 .exch-bubble.agent{background:#f0f4ff;border-color:var(--blue);color:var(--g700)}
 .exch-bubble.customer{background:#faf5ff;border-color:var(--purple);color:var(--g700)}
 .exch-bubble .label{font:600 10px var(--f);color:var(--g400);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
@@ -207,7 +213,7 @@ nav .conn-status.on{color:var(--green)}
 .tl-entry .t{color:var(--g700);flex:1}
 
 /* ===== THREAD ===== */
-.bubble{margin-bottom:12px;border-radius:var(--r);padding:16px 20px;border-left:3px solid;animation:fadeUp .3s ease}
+.bubble{margin-bottom:12px;border-radius:var(--r);padding:16px 20px;border-left:3px solid;animation:fadeUp .12s ease;contain:layout style}
 .bubble.agent{background:#f0f4ff;border-color:var(--blue)}
 .bubble.customer{background:#faf5ff;border-color:var(--purple)}
 .bubble.note{background:#f0fdf4;border-color:var(--green)}
@@ -225,7 +231,7 @@ nav .conn-status.on{color:var(--green)}
 .rc{
     background:var(--white);border-radius:var(--r);padding:18px 20px;margin-bottom:10px;
     box-shadow:0 1px 3px rgba(0,0,0,.04);border:1px solid transparent;
-    transition:all .2s;animation:fadeUp .3s ease;
+    transition:all .2s;animation:fadeUp .12s ease;
 }
 .rc:hover{border-color:var(--blue);box-shadow:0 4px 12px rgba(0,122,255,.08)}
 .rc .rc-title{font:600 15px/1.3 var(--f);color:var(--black);letter-spacing:-.2px}
@@ -303,6 +309,7 @@ nav .conn-status.on{color:var(--green)}
     <input type="text" id="inp-search" placeholder="Search tickets...">
     <button class="nbtn primary" onclick="doSearch()">Search</button>
     <span class="conn-status" id="conn-status"></span>
+    <span class="ticket-stats" id="ticket-stats" style="display:none"></span>
 </nav>
 
 <div class="app">
@@ -351,17 +358,40 @@ function toggleKey(){const i=document.getElementById('inp-key');i.type=i.type===
 
 (function(){const k=localStorage.getItem('fd_apikey');if(k){document.getElementById('inp-key').value=k;setTimeout(connect,300)}})();
 
-async function api(p,retries){
-    retries=retries||0;
-    const r=await fetch('/fd/'+p,{headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom}});
-    if(r.status===429&&retries<3){
-        const wait=Math.pow(2,retries)*2000;
-        await new Promise(ok=>setTimeout(ok,wait));
-        return api(p,retries+1);
-    }
-    if(!r.ok)throw new Error('API '+r.status);return r;
+var _q=[],_qPri=[],_qRun=0,_qPriRun=0,_qMax=6,_qNormMax=4;
+function _qFlush(){
+    while(_qPri.length&&_qRun<_qMax){_qRun++;_qPriRun++;var pj=_qPri.shift();pj()}
+    while(_q.length&&_qRun<_qMax&&(_qRun-_qPriRun)<_qNormMax){_qRun++;var nj=_q.shift();nj()}
 }
-async function get(p){return(await api(p)).json()}
+function api(p,opts){
+    opts=opts||{};
+    var isPri=!!opts.priority;
+    return new Promise(function(resolve,reject){
+        var fn=function(){
+            var retries=0;
+            function attempt(){
+                var init={headers:{'X-FD-Key':D.key,'X-FD-Domain':D.dom}};
+                if(opts.method){init.method=opts.method;init.headers['Content-Type']='application/json'}
+                if(opts.body)init.body=opts.body;
+                fetch('/fd/'+p,init).then(function(r){
+                    if(r.status===429&&retries<3){
+                        retries++;
+                        var ra=r.headers.get('Retry-After');
+                        var wait=ra?parseInt(ra)*1000:Math.pow(2,retries)*1000;
+                        setTimeout(attempt,wait);return;
+                    }
+                    _qRun--;if(isPri)_qPriRun--;_qFlush();
+                    if(!r.ok){reject(new Error('API '+r.status));return}
+                    resolve(r);
+                }).catch(function(e){_qRun--;if(isPri)_qPriRun--;_qFlush();reject(e)});
+            }
+            attempt();
+        };
+        if(isPri){_qPri.push(fn)}else{_q.push(fn)}
+        _qFlush();
+    });
+}
+async function get(p,opts){return(await api(p,opts)).json()}
 
 async function connect(){
     D.key=document.getElementById('inp-key').value.trim();
@@ -372,7 +402,10 @@ async function connect(){
         const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';D.sig=me.signature||'';
         localStorage.setItem('fd_apikey',D.key);st(D.anm,1);
         loadCanned();
-        await Promise.all([load(),loadNewTickets()]);
+        var cn=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');
+        if(Object.keys(cn).length)D._earlyNewIds=new Set(Object.keys(cn).map(Number));
+        await Promise.all([loadNewTickets(),load()]);
+        setTimeout(loadStats,5000);
         if(!D._newPoll)D._newPoll=setInterval(()=>{refresh()},300000);
     }catch(e){
         if(e.message.includes('404')){try{await get('tickets?per_page=1');localStorage.setItem('fd_apikey',D.key);st('Connected',1);load()}catch(e2){st('Failed')}}
@@ -380,6 +413,95 @@ async function connect(){
     }
 }
 
+var _statsRun=0,_statsCache={ts:0,allT:null,myT:null};
+async function loadStats(){
+    var run=++_statsRun;
+    try{
+        var yr=new Date().getFullYear(),now=new Date();
+        var tags=["branchkya","KYA Internal"];
+        var mes="cf_rand412401:'MES'";
+        var el=document.getElementById('ticket-stats');
+        var CK='fd_resp4';
+        var cache=JSON.parse(localStorage.getItem(CK)||'{}');
+        var noResp=new Set();
+        Object.keys(cache).forEach(function(k){if(!cache[k])noResp.add(Number(k))});
+
+        function render(allT,myT){
+            if(_statsRun!==run)return;
+            var total=allT.filter(function(t){return !noResp.has(t.id)}).length;
+            var mine=myT.filter(function(t){return !noResp.has(t.id)}).length;
+            var pct=total>0?Math.round(mine/total*100):0;
+            var clr=pct>=30?'green':pct>=20?'amber':'red';
+            el.innerHTML=mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span>';
+            el.title=D.anm+': '+mine+' de '+total+' MES '+yr;
+            el.style.display='';
+        }
+
+        var allT,myT;
+        if(_statsCache.allT&&Date.now()-_statsCache.ts<900000){
+            allT=_statsCache.allT;myT=_statsCache.myT;
+        }else{
+            async function pages(q){
+                var out=[],pg=1;
+                while(pg<=10){
+                    try{
+                        var d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);
+                        var r=d.results||[];out=out.concat(r);if(r.length<30)break;pg++;
+                    }catch(e){break}
+                }
+                return out;
+            }
+            var qtr=[['-01-01','-04-01'],['-04-01','-07-01'],['-07-01','-10-01'],['-10-01','-01-01']];
+            var queries=[];
+            for(var i=0;i<4;i++){
+                var ds=yr+qtr[i][0];
+                if(new Date(ds)>now)break;
+                var prev=new Date(ds);prev.setDate(prev.getDate()-1);
+                var ps=prev.getFullYear()+'-'+String(prev.getMonth()+1).padStart(2,'0')+'-'+String(prev.getDate()).padStart(2,'0');
+                var de=i<3?(yr+qtr[i][1]):((yr+1)+'-01-01');
+                var df="created_at:>'"+ps+"' AND created_at:<'"+de+"'";
+                for(var ti=0;ti<tags.length;ti++){
+                    queries.push('"'+"tag:'"+tags[ti]+"' AND "+mes+' AND '+df+'"');
+                }
+            }
+            var results=[];
+            for(var qi=0;qi<queries.length;qi++){
+                if(_statsRun!==run)return;
+                results.push(await pages(queries[qi]));
+            }
+
+            var seen=new Set();allT=[];myT=[];
+            var yrs=String(yr);
+            for(var i=0;i<results.length;i++)results[i].forEach(function(t){
+                if(!seen.has(t.id)&&t.created_at&&t.created_at.slice(0,4)===yrs){
+                    seen.add(t.id);allT.push(t);
+                    if(t.responder_id===D.aid)myT.push(t);
+                }
+            });
+            _statsCache={ts:Date.now(),allT:allT,myT:myT};
+        }
+
+        render(allT,myT);
+
+        var unchecked=allT.filter(function(t){return !(t.id in cache)});
+        if(unchecked.length>0){
+            for(var b=0;b<unchecked.length;b+=2){
+                if(_statsRun!==run)return;
+                var batch=unchecked.slice(b,b+2);
+                await Promise.all(batch.map(function(t){
+                    return get('tickets/'+t.id+'/conversations?per_page=100').then(function(convs){
+                        var has=(convs||[]).some(function(c){return c.incoming===false&&!c.private});
+                        cache[t.id]=has;
+                        if(!has)noResp.add(t.id);
+                    }).catch(function(){});
+                }));
+                render(allT,myT);
+                try{localStorage.setItem(CK,JSON.stringify(cache))}catch(e){}
+                await new Promise(function(r){setTimeout(r,3000)});
+            }
+        }
+    }catch(e){console.warn('loadStats',e)}
+}
 
 function loadCanned(){
     const cached=localStorage.getItem('fd_canned');
@@ -416,23 +538,16 @@ async function fetchByStatus(st){
 }
 
 async function checkLastReply(tid){
-    let all=[],pg=1;
-    while(true){
-        const batch=await get('tickets/'+tid+'/conversations?per_page=100&page='+pg);
-        if(!batch||!batch.length)break;
-        all=all.concat(batch);
-        if(batch.length<100)break;
-        pg++;
-    }
-    const pub=all.filter(c=>!c.private);
-    const last=pub.length?pub[pub.length-1]:null;
-    return last?(last.incoming!==false):true;
+    var batch=await get('tickets/'+tid+'/conversations?per_page=100');
+    if(!batch||!batch.length)return true;
+    for(var i=batch.length-1;i>=0;i--){if(!batch[i].private)return batch[i].incoming!==false}
+    return true;
 }
 
 function showProg(done,total){
     var bar=document.getElementById('prog'),fill=document.getElementById('prog-fill');
     if(total>0){bar.style.display='block';fill.style.width=Math.round(done/total*100)+'%'}
-    else{bar.style.display='none';fill.style.width='0'}
+    else if(bar.style.display!=='none'){fill.style.width='100%';setTimeout(function(){bar.style.display='none';fill.style.width='0'},350)}
 }
 async function loadAll(){
     document.getElementById('list').innerHTML='<div class="loading-msg">Loading tickets</div>';
@@ -444,25 +559,26 @@ async function loadAll(){
     var craw=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
     const cache=craw._v===6?craw:{_v:6};
     let done=0;const total=D.allOpen.length;
-    let _raf=0;function tick(){done++;showProg(done,total);if(!_raf){_raf=requestAnimationFrame(function(){_raf=0;applyFilter()})}}
-    await Promise.all(D.allOpen.map(function(t){
-        const c=cache[t.id];
-        if(c&&c.u===t.updated_at){
-            D.lr[t.id]=!!c.lr;t._reqName=c.rn;t._company=c.co;tick();return Promise.resolve();
-        }
+    var _loadThrottle=0;function tick(){done++;showProg(done,total);if(!_loadThrottle){_loadThrottle=setTimeout(function(){_loadThrottle=0;applyFilter()},500)}}
+    D.allOpen.forEach(function(t){
+        var c=cache[t.id];
+        if(c&&c.u===t.updated_at){D.lr[t.id]=!!c.lr;t._reqName=c.rn;t._company=c.co;tick()}
+    });
+    applyFilter();
+    await Promise.all(D.allOpen.filter(function(t){return !cache[t.id]||cache[t.id].u!==t.updated_at}).map(function(t){
         var lr=checkLastReply(t.id).catch(function(){return true});
         var det=get('tickets/'+t.id+'?include=requester,company').catch(function(){return null});
         return Promise.all([lr,det]).then(function(r){
             D.lr[t.id]=!!r[0];
             t._reqName=r[1]&&r[1].requester?r[1].requester.name:'Unknown';
             t._company=r[1]?coName(r[1]):'';
-            cache[t.id]={u:t.updated_at,lr:r[0],rn:t._reqName,co:t._company};
+            if(r[1])cache[t.id]={u:t.updated_at,lr:r[0],rn:t._reqName,co:t._company};
+            else cache[t.id]={u:null,lr:r[0],rn:t._reqName,co:t._company};
             tick();
         });
     }));
     applyFilter();showProg(0,0);
     try{localStorage.setItem('fd_cache4',JSON.stringify(cache))}catch(e){}
-    applyFilter();
 }
 
 async function loadNewTickets(){
@@ -487,13 +603,13 @@ async function loadNewTickets(){
             while(true){const d=await get('search/tickets?query='+encodeURIComponent(q)+'&page='+pg);const res=d.results||[];r=r.concat(res);if(res.length<30||pg>=10)break;pg++}
             return r;
         };
-        const all=[].concat(...await Promise.all(D._teamIds.map(searchOne)));
-        var filtered=all;
+        var all=[].concat(...await Promise.all(D._teamIds.map(searchOne)));
+        D._earlyNewIds=new Set(all.map(function(t){return t.id}));
 
-        const noReply=[];
-        const cache=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');
-        await Promise.all(filtered.map(function(t){
-            const c=cache[t.id];
+        var noReply=[];
+        var cache=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');
+        await Promise.all(all.map(function(t){
+            var c=cache[t.id];
             if(c&&c.u===t.updated_at&&c.ar!==undefined){
                 t._reqName=c.rn;t._company=c.co;if(!c.ar)noReply.push(t);return Promise.resolve();
             }
@@ -506,7 +622,8 @@ async function loadNewTickets(){
             }).catch(function(){noReply.push(t)});
         }));
         try{localStorage.setItem('fd_cache_new',JSON.stringify(cache))}catch(e){}
-        D.newTks=noReply.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+        D.newTks=noReply.sort(function(a,b){return new Date(a.created_at)-new Date(b.created_at)});
+        D._earlyNewIds=null;
         updateNewBadge();
     }catch(e){D.newTks=[];updateNewBadge()}
 }
@@ -519,19 +636,21 @@ function updateNewBadge(){
 }
 
 function applyFilter(){
+    var newIds=D._earlyNewIds||new Set(D.newTks.map(function(t){return t.id}));
+    _newIdSet=newIds;
     if(D.fl==='new'){
         D.tks=D.newTks.slice();
     }
-    else if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true&&!D.pending.has(t.id)).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
+    else if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true&&!D.pending.has(t.id)&&!newIds.has(t.id)).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
     else if(D.fl===4)D.tks=D.allOpen.filter(t=>D.pending.has(t.id)).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
-    else if(D.fl===3)D.tks=D.allOpen.filter(t=>D.lr[t.id]===false&&!D.pending.has(t.id)).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
+    else if(D.fl===3)D.tks=D.allOpen.filter(t=>D.lr[t.id]===false&&!D.pending.has(t.id)&&!newIds.has(t.id)).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
     else D.tks=D.allOpen.slice();
     D.pgs=1;
     rl();up();
     function setBadge(id,c){var b=document.getElementById(id);if(c>0){b.textContent=c;b.style.display='inline-flex'}else{b.style.display='none'}}
-    setBadge('turn-badge',D.allOpen.filter(t=>D.lr[t.id]===true&&!D.pending.has(t.id)).length);
+    setBadge('turn-badge',D.allOpen.filter(t=>D.lr[t.id]===true&&!D.pending.has(t.id)&&!newIds.has(t.id)).length);
     setBadge('pend-badge',D.allOpen.filter(t=>D.pending.has(t.id)).length);
-    setBadge('wait-badge',D.allOpen.filter(t=>D.lr[t.id]===false&&!D.pending.has(t.id)).length);
+    setBadge('wait-badge',D.allOpen.filter(t=>D.lr[t.id]===false&&!D.pending.has(t.id)&&!newIds.has(t.id)).length);
     setBadge('all-badge',D.allOpen.length);
 }
 
@@ -549,26 +668,25 @@ async function load(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 
+var _newIdSet=new Set();
 function rl(){
-    const el=document.getElementById('list');
+    var el=document.getElementById('list');
     if(!D.tks.length){el.innerHTML='<div class="empty-msg">No tickets</div>';return}
-    el.innerHTML=D.tks.map(t=>{
-        const ac=D.cur&&D.cur.id===t.id?'active':'';
-        const rq=t._reqName||(t.requester?t.requester.name:'Unknown');
-        const co=t._company||'';
-        const sub=co?(esc(rq)+' &middot; '+esc(co)):esc(rq);
-        const stale=Math.floor((Date.now()-new Date(t.updated_at))/864e5);
-        let ind='',ic='';
-        const isNew=D.newTks.some(n=>n.id===t.id);
-        if(isNew){ind='new';ic='NEW'}
+    var curId=D.cur?D.cur.id:0,now=Date.now(),h='';
+    for(var j=0;j<D.tks.length;j++){
+        var t=D.tks[j];
+        var ac=t.id===curId?' active':'';
+        var rq=t._reqName||(t.requester?t.requester.name:'Unknown');
+        var co=t._company||'';
+        var sub=co?(esc(rq)+' &middot; '+esc(co)):esc(rq);
+        var ind='',ic='';
+        if(_newIdSet.has(t.id)){ind='new';ic='NEW'}
         else if(D.pending.has(t.id)){ind='pend';ic='PENDING'}
         else if(D.lr[t.id]===true){ind='yours';ic='YOUR TURN'}
         else if(D.lr[t.id]===false){ind='wait';ic='WAITING'}
-        return '<div class="tkt '+ac+'" onclick="sel('+t.id+')" oncontextmenu="return tkCtx(event,'+t.id+')">'+
-            '<div class="pri" style="background:'+(PC[t.priority]||'var(--g300)')+'"></div>'+
-            '<div class="col"><div class="ttl">#'+t.id+' '+esc(t.subject||'')+'</div><div class="sub">'+sub+'</div></div>'+
-            '<div class="right"><div class="time">'+ago(new Date(t.updated_at))+'</div>'+(ind?'<div class="indicator '+ind+'">'+ic+'</div>':'')+'</div></div>';
-    }).join('');
+        h+='<div class="tkt'+ac+'" onclick="sel('+t.id+')" oncontextmenu="return tkCtx(event,'+t.id+')"><div class="pri" style="background:'+(PC[t.priority]||'var(--g300)')+'"></div><div class="col"><div class="ttl">#'+t.id+' '+esc(t.subject||'')+'</div><div class="sub">'+sub+'</div></div><div class="right"><div class="time">'+ago(new Date(t.updated_at))+'</div>'+(ind?'<div class="indicator '+ind+'">'+ic+'</div>':'')+'</div></div>';
+    }
+    el.innerHTML=h;
 }
 
 function tkCtx(e,id){
@@ -610,20 +728,47 @@ async function unmarkPending(id){
     applyFilter();
 }
 
+var _selCache={};
 async function sel(id){
-    document.getElementById('hdr').innerHTML='';
-    document.getElementById('tab-bar').innerHTML='';
+    _memoKey='';_memoMsgs=null;_memoAna=null;_replyCache={};
+    var cached=_selCache[id];
+    if(cached&&Date.now()-cached.ts<300000){
+        D.cur=cached.t;D.cvs=cached.cvs;window._langOverride=null;rl();renderRight();
+        return;
+    }
+    var stub=D.allOpen.find(function(t){return t.id===id})||D.newTks.find(function(t){return t.id===id});
+    if(stub){
+        document.getElementById('hdr').innerHTML='<div class="hdr-box"><h1>#'+id+' — '+esc(stub.subject||'')+'</h1><div class="chips">'
+            +'<span class="chip '+(SCLS[stub.status]||'')+'">'+(SN[stub.status]||stub.status)+'</span>'
+            +'<span class="chip '+(PCLS[stub.priority]||'')+'">'+(PN[stub.priority]||'?')+'</span>'
+            +'<span class="chip chip-meta">'+esc(stub._reqName||(stub.requester?stub.requester.name:''))+'</span>'
+            +'</div></div>';
+        document.getElementById('tab-bar').innerHTML='';
+    }else{
+        document.getElementById('hdr').innerHTML='';
+        document.getElementById('tab-bar').innerHTML='';
+    }
     document.getElementById('content').innerHTML='<div class="loading-msg">Loading</div>';
     try{
-        const t=await get('tickets/'+id+'?include=requester,company');
+        var r=await Promise.all([
+            get('tickets/'+id+'?include=requester,company',{priority:1}),
+            get('tickets/'+id+'/conversations?per_page=100',{priority:1}).catch(function(){return[]})
+        ]);
+        var t=r[0],firstPage=r[1]||[];
+        if(!t.requester&&t.requester_id){try{t.requester=await get('contacts/'+t.requester_id,{priority:1})}catch(e){}}
         t._company=coName(t);
-        let allConvs=[],pg=1;
-        while(true){
-            const page=await get('tickets/'+id+'/conversations?per_page=100&page='+pg);
-            allConvs=allConvs.concat(page);
-            if(page.length<100)break;
-            pg++;
+        var allConvs=firstPage.slice();
+        if(firstPage.length>=100){
+            var pg=2;
+            while(true){
+                var page=await get('tickets/'+id+'/conversations?per_page=100&page='+pg,{priority:1});
+                if(!page||!page.length)break;
+                allConvs=allConvs.concat(page);
+                if(page.length<100)break;
+                pg++;
+            }
         }
+        _selCache[id]={t:t,cvs:allConvs,ts:Date.now()};
         D.cur=t;D.cvs=allConvs;window._langOverride=null;rl();renderRight();
     }catch(e){document.getElementById('content').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
@@ -666,19 +811,24 @@ function renderRight(){
 
 function tab(b,i){b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');showPane(i)}
 
+var _replyCache={};
 function showPane(i){
     const t=D.cur,c=D.cvs;
     const el=document.getElementById('content');
     el.scrollTop=0;
     if(i===0)el.innerHTML='<div class="rpad">'+summaryHTML(t,c)+'</div>';
     else if(i===1)el.innerHTML='<div class="rpad">'+threadHTML(t,c)+'</div>';
-    else el.innerHTML='<div class="rpad">'+replyHTML(t,c)+'</div>';
+    else{
+        var k=t.id;
+        if(!_replyCache[k])_replyCache[k]=replyHTML(t,c);
+        el.innerHTML='<div class="rpad">'+_replyCache[k]+'</div>';
+    }
     document.getElementById('scroll-area').scrollTop=0;
 }
 
 /* =============== SUMMARY =============== */
 function summaryHTML(t,c){
-    const m=msgs(t,c),a=ana(t,m);
+    const m=memoMsgs(t,c),a=memoAna(t,c);
     let h='';
 
     h+='<div class="action-strip act-'+a.sit+'"><span class="emoji">'+a.ico+'</span><span class="desc">'+a.lbl+'</span><span class="when">'+(a.stale>0?a.stale+'d ago':'today')+'</span></div>';
@@ -1198,15 +1348,14 @@ function nameFromEmail(fe){
 }
 
 function replyHTML(t,c){
-    const m=msgs(t,c),a=ana(t,m);
+    const m=memoMsgs(t,c),a=memoAna(t,c);
     const nm=t.requester?t.requester.name:'Customer';
     const reqFirst=(nm.split(' ')[0]||nm);
-    const lastCustMsg=m.filter(x=>x.f==='Customer');
-    const lastWho=lastCustMsg.length?lastCustMsg[lastCustMsg.length-1].who:null;
-    const firstName=(lastWho&&lastWho!==nm)?lastWho.split(' ')[0]:reqFirst;
-    const subj=t.subject||'your request';
     const allCust=m.filter(x=>x.f==='Customer');
     const allAgent=m.filter(x=>x.f==='Agent');
+    const lastWho=allCust.length?allCust[allCust.length-1].who:null;
+    const firstName=(lastWho&&lastWho!==nm)?lastWho.split(' ')[0]:reqFirst;
+    const subj=t.subject||'your request';
     const lastCust=allCust.length?allCust[allCust.length-1]:null;
     const lastAgent=allAgent.length?allAgent[allAgent.length-1]:null;
     const firstCust=allCust.length?allCust[0]:null;
@@ -1699,6 +1848,7 @@ function replyHTML(t,c){
 
 function toggleLang(){
     const rc=window._replyCtx;if(!rc)return;
+    _replyCache={};
     const newLang=rc.lang==='es'?'en':'es';
     window._langOverride=newLang;
     showPane(2);
@@ -2134,6 +2284,10 @@ function updateSPButton(ticketId,link){
 }
 
 /* =============== ANALYSIS ENGINE =============== */
+var _memoMsgs=null,_memoAna=null,_memoKey='';
+function _mKey(){return D.cur?D.cur.id+':'+D.cvs.length:''}
+function memoMsgs(t,c){var k=_mKey();if(k===_memoKey&&_memoMsgs)return _memoMsgs;_memoKey=k;_memoMsgs=msgs(t,c);_memoAna=null;return _memoMsgs}
+function memoAna(t,c){if(_memoAna)return _memoAna;var m=memoMsgs(t,c);_memoAna=ana(t,m);return _memoAna}
 function msgs(t,c){
     const r=[];
     const desc=t.description_text||strip(t.description||'');
@@ -2200,7 +2354,7 @@ async function doSearch(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
-async function refresh(){D.allOpen=[];D.lr={};D.newTks=[];localStorage.removeItem('fd_cache4');localStorage.removeItem('fd_cache_new');await Promise.all([loadAll(),loadNewTickets()]);applyFilter()}
+async function refresh(){showProg(0,1);D.allOpen=[];D.lr={};D.newTks=[];D._earlyNewIds=null;var cn=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');if(Object.keys(cn).length)D._earlyNewIds=new Set(Object.keys(cn).map(Number));localStorage.removeItem('fd_cache_new');await Promise.all([loadNewTickets(),loadAll()]);applyFilter();setTimeout(loadStats,3000)}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
 
