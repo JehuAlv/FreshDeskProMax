@@ -421,15 +421,19 @@ async function loadStats(){
         var tags=["branchkya","KYA Internal"];
         var mes="cf_rand412401:'MES'";
         var el=document.getElementById('ticket-stats');
-        var CK='fd_resp5';
+        var CK='fd_resp6';
         var cache=JSON.parse(localStorage.getItem(CK)||'{}');
+        var merged=new Set();
         var noResp=new Set();
-        Object.keys(cache).forEach(function(k){if(!cache[k])noResp.add(Number(k))});
+        Object.keys(cache).forEach(function(k){
+            if(cache[k]==='merged')merged.add(Number(k));
+            else if(!cache[k])noResp.add(Number(k));
+        });
 
         function render(allT,myT){
             if(_statsRun!==run)return;
-            var total=allT.filter(function(t){return !noResp.has(t.id)}).length;
-            var mine=myT.filter(function(t){return !noResp.has(t.id)}).length;
+            var total=allT.filter(function(t){return !merged.has(t.id)}).length;
+            var mine=myT.filter(function(t){return !noResp.has(t.id)&&!merged.has(t.id)}).length;
             var pct=total>0?Math.round(mine/total*100):0;
             var clr=pct>=30?'green':pct>=20?'amber':'red';
             el.innerHTML=mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span>';
@@ -483,7 +487,8 @@ async function loadStats(){
 
         render(allT,myT);
 
-        var unchecked=allT.filter(function(t){return !(t.id in cache)||cache[t.id]===false});
+        var myIds=new Set(myT.map(function(t){return t.id}));
+        var unchecked=allT.filter(function(t){return !(t.id in cache)||(cache[t.id]===false&&myIds.has(t.id))});
         if(unchecked.length>0){
             for(var b=0;b<unchecked.length;b+=2){
                 if(_statsRun!==run)return;
@@ -492,10 +497,13 @@ async function loadStats(){
                     return get('tickets/'+t.id+'/conversations?per_page=100').then(function(convs){
                         var cl=convs||[];
                         var last=cl.length?cl[cl.length-1]:null;
-                        var merged=last&&last.private&&last.body_text&&last.body_text.indexOf('merged into ticket')!==-1;
-                        var has=!merged&&cl.some(function(c){return c.incoming===false&&!c.private});
-                        cache[t.id]=has;
-                        if(!has)noResp.add(t.id);
+                        var isMerged=last&&last.private&&last.body_text&&last.body_text.indexOf('merged into ticket')!==-1;
+                        if(isMerged){cache[t.id]='merged';merged.add(t.id);}
+                        else{
+                            var has=cl.some(function(c){return c.incoming===false&&!c.private});
+                            cache[t.id]=has;
+                            if(!has)noResp.add(t.id);
+                        }
                     }).catch(function(){});
                 }));
                 render(allT,myT);
