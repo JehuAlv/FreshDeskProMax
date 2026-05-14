@@ -421,7 +421,7 @@ async function loadStats(){
         var tags=["branchkya","KYA Internal"];
         var mes="cf_rand412401:'MES'";
         var el=document.getElementById('ticket-stats');
-        var CK='fd_resp4';
+        var CK='fd_resp5';
         var cache=JSON.parse(localStorage.getItem(CK)||'{}');
         var noResp=new Set();
         Object.keys(cache).forEach(function(k){if(!cache[k])noResp.add(Number(k))});
@@ -483,14 +483,17 @@ async function loadStats(){
 
         render(allT,myT);
 
-        var unchecked=allT.filter(function(t){return !(t.id in cache)});
+        var unchecked=allT.filter(function(t){return !(t.id in cache)||cache[t.id]===false});
         if(unchecked.length>0){
             for(var b=0;b<unchecked.length;b+=2){
                 if(_statsRun!==run)return;
                 var batch=unchecked.slice(b,b+2);
                 await Promise.all(batch.map(function(t){
                     return get('tickets/'+t.id+'/conversations?per_page=100').then(function(convs){
-                        var has=(convs||[]).some(function(c){return c.incoming===false&&!c.private});
+                        var cl=convs||[];
+                        var last=cl.length?cl[cl.length-1]:null;
+                        var merged=last&&last.private&&last.body_text&&last.body_text.indexOf('merged into ticket')!==-1;
+                        var has=!merged&&cl.some(function(c){return c.incoming===false&&!c.private});
                         cache[t.id]=has;
                         if(!has)noResp.add(t.id);
                     }).catch(function(){});
@@ -2354,7 +2357,7 @@ async function doSearch(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
-async function refresh(){showProg(0,1);D.allOpen=[];D.lr={};D.newTks=[];D._earlyNewIds=null;var cn=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');if(Object.keys(cn).length)D._earlyNewIds=new Set(Object.keys(cn).map(Number));localStorage.removeItem('fd_cache_new');await Promise.all([loadNewTickets(),loadAll()]);applyFilter();setTimeout(loadStats,3000)}
+async function refresh(){showProg(0,1);D.allOpen=[];D.lr={};D.newTks=[];D._earlyNewIds=null;_statsCache={ts:0,allT:null,myT:null};var cn=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');if(Object.keys(cn).length)D._earlyNewIds=new Set(Object.keys(cn).map(Number));localStorage.removeItem('fd_cache_new');await Promise.all([loadNewTickets(),loadAll()]);applyFilter();setTimeout(loadStats,3000)}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}
 
