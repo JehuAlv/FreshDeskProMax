@@ -166,15 +166,25 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         try:
             config = _get_sp_config()
-            emails = data.get('emails', [])
+            frontend_emails = data.get('emails', [])
 
             with ThreadPoolExecutor(max_workers=2) as pool:
                 token_future = pool.submit(_get_sp_token)
-                if not emails:
-                    fd_future = pool.submit(self._sp_fetch_emails, config, ticket_id)
+                fd_future = pool.submit(self._sp_fetch_emails, config, ticket_id)
                 token = token_future.result()
-                if not emails:
-                    emails = fd_future.result()
+                fd_emails = fd_future.result()
+
+            merged = set(e.lower().strip() for e in frontend_emails)
+            merged.update(e.lower().strip() for e in fd_emails)
+            exclude = config.get('exclude_emails', set())
+            exclude_domains = config.get('exclude_domains', set())
+            emails = sorted(
+                e for e in merged
+                if e
+                and e not in exclude
+                and e.split('@')[1] not in exclude_domains
+                and not e.endswith('.freshdesk.com')
+            )
 
             sp.ensure_folder(token, '', 'Tickets')
             folder_id, created = sp.ensure_folder(token, 'Tickets', str(ticket_id))
