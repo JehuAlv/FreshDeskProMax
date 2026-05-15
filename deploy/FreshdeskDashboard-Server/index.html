@@ -2611,7 +2611,15 @@ async function confirmSendReply(){
             setTimeout(()=>{closeSendModal();D.cur=null;document.getElementById('detail').innerHTML=''},1200);
         }else{
             D.lr[D.cur.id]=false;
-            if(D.fl===2)applyFilter();
+            var wasNew=D.newTks.some(t=>t.id===D.cur.id);
+            if(wasNew){
+                var tk=D.newTks.find(t=>t.id===D.cur.id);
+                D.newTks=D.newTks.filter(t=>t.id!==D.cur.id);
+                updateNewBadge();
+                if(tk&&!D.allOpen.some(t=>t.id===tk.id))D.allOpen.push(tk);
+                try{var cn=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');delete cn[D.cur.id];localStorage.setItem('fd_cache_new',JSON.stringify(cn))}catch(e){}
+            }
+            applyFilter();
             setTimeout(()=>{closeSendModal();sel(D.cur.id)},1200);
         }
     }catch(e){
