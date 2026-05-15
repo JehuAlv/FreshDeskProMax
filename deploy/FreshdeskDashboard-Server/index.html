@@ -350,6 +350,34 @@ const ICLS={1:'pill-low',2:'pill-med',3:'pill-high',4:'pill-urg'};
 
 var _praw=JSON.parse(localStorage.getItem('fd_pending')||'[]');
 var _pend=new Set(Array.isArray(_praw)?_praw:Object.keys(_praw).map(Number));
+
+var _aiExamples=JSON.parse(localStorage.getItem('fd_ai_examples')||'[]');
+function saveAIExample(customerMsg,agentReply,lang,subject){
+    if(!customerMsg||!agentReply)return;
+    _aiExamples.push({c:customerMsg.substring(0,500),a:agentReply.substring(0,500),l:lang,s:(subject||'').substring(0,80),d:Date.now()});
+    if(_aiExamples.length>200)_aiExamples=_aiExamples.slice(-200);
+    try{localStorage.setItem('fd_ai_examples',JSON.stringify(_aiExamples))}catch(e){}
+}
+function getAIExamples(lang,n,customerMsg){
+    var matching=_aiExamples.filter(function(x){return x.l===lang});
+    if(!customerMsg||!matching.length)return matching.slice(-n);
+    var stop=new Set(['the','a','an','is','are','was','were','be','been','to','of','in','for','on','with','at','by','that','this','it','and','or','but','not','no','from','as','do','did','has','have','had','will','can','could','would','should','i','you','we','they','he','she','me','my','your','our','el','la','los','las','un','una','de','del','en','por','para','con','que','es','son','no','se','lo','al','como','su','nos','le','te','mi','tu','ya','si','más','muy']);
+    var words=customerMsg.toLowerCase().replace(/[^a-záéíóúñü\s]/g,'').split(/\s+/).filter(function(w){return w.length>2&&!stop.has(w)});
+    if(!words.length)return matching.slice(-n);
+    var wordSet=new Set(words);
+    var scored=matching.map(function(ex){
+        var exWords=ex.c.toLowerCase().replace(/[^a-záéíóúñü\s]/g,'').split(/\s+/).filter(function(w){return w.length>2&&!stop.has(w)});
+        var hits=exWords.filter(function(w){return wordSet.has(w)}).length;
+        var score=hits/Math.max(wordSet.size,1);
+        return{ex:ex,score:score};
+    });
+    scored.sort(function(a,b){return b.score-a.score});
+    var result=[];
+    for(var i=0;i<scored.length&&result.length<n;i++){
+        if(scored[i].score>0.1)result.push(scored[i].ex);
+    }
+    return result;
+}
 let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',sig:'',allOpen:[],lr:{},canned:null,newTks:[],pending:_pend};
 
 document.getElementById('inp-search').onkeydown=e=>{if(e.key==='Enter')doSearch()};
@@ -2135,6 +2163,14 @@ BASE PHRASES (adapt to context):
     if(sugSection)usrParts.push('\nEXAMPLE REPLIES:\n'+sugSection);
     if(triedList)usrParts.push('\nAlready tried (do NOT suggest again): '+triedList);
 
+    var examples=getAIExamples(esL?'es':'en',2,lastCustText);
+    if(examples.length){
+        usrParts.push('\n=== LEARNED EXAMPLES (this agent\'s real replies — match this style) ===');
+        examples.forEach(function(ex){
+            usrParts.push('Customer: '+ex.c+'\nAgent replied: '+ex.a+'\n');
+        });
+    }
+
     usrParts.push('\nWrite ONLY the email. Start with "'+rc.hi+'," end with "'+rc.bye+'". Nothing else.');
 
     const usr=usrParts.join('\n');
@@ -2456,6 +2492,7 @@ function openCloseTicket(){
 
 function openSendModal(text,resolveOnSend){
     window._resolveOnSend=!!resolveOnSend;
+    window._sendModalOriginal=text||'';
     if(!D.cur)return;
     const rc=window._replyCtx;
     const esL=rc&&rc.lang==='es';
@@ -2556,6 +2593,26 @@ async function confirmSendReply(){
             ?(esL?'Enviado y ticket cerrado':'Reply sent & ticket resolved')
             :(esL?'Enviado correctamente':'Reply sent successfully');
         sendBtn.style.display='none';
+
+        if(window._aiReply&&rc){
+            var sent=text;
+            var orig=window._sendModalOriginal||'';
+            var lastCustMsgs=rc.m.filter(function(x){return x.f==='Customer'});
+            var lastCustMsg=lastCustMsgs.length?cleanEmailBody(lastCustMsgs[lastCustMsgs.length-1].t):'';
+            if(lastCustMsg){
+                var similarity=orig===sent?1:0;
+                if(!similarity){
+                    var words1=orig.toLowerCase().split(/\s+/);
+                    var words2=sent.toLowerCase().split(/\s+/);
+                    var common=words1.filter(function(w){return words2.indexOf(w)>=0}).length;
+                    similarity=common/Math.max(words1.length,words2.length,1);
+                }
+                if(similarity<0.85){
+                    saveAIExample(lastCustMsg,sent,rc.lang,D.cur.subject);
+                    statusEl.textContent+=(esL?' (ejemplo guardado)':' (example saved)');
+                }
+            }
+        }
 
         if(window._resolveOnSend){
             D.allOpen=D.allOpen.filter(t=>t.id!==D.cur.id);
