@@ -601,7 +601,7 @@ async function loadAll(){
     var _loadThrottle=0;function tick(){done++;showProg(done,total);if(!_loadThrottle){_loadThrottle=setTimeout(function(){_loadThrottle=0;applyFilter()},500)}}
     D.allOpen.forEach(function(t){
         var c=cache[t.id];
-        if(c&&c.u===t.updated_at){D.lr[t.id]=!!c.lr;t._reqName=c.rn;t._company=c.co;tick()}
+        if(c&&c.u===t.updated_at&&c.rn&&c.rn!=='Unknown'){D.lr[t.id]=!!c.lr;t._reqName=c.rn;t._company=c.co;tick()}
     });
     applyFilter();
     await Promise.all(D.allOpen.filter(function(t){return !cache[t.id]||cache[t.id].u!==t.updated_at}).map(function(t){
