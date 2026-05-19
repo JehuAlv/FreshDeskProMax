@@ -683,7 +683,7 @@ function applyFilter(){
     else if(D.fl===2)D.tks=D.allOpen.filter(t=>D.lr[t.id]===true&&!D.pending.has(t.id)&&!newIds.has(t.id)).sort((a,b)=>new Date(a.updated_at)-new Date(b.updated_at));
     else if(D.fl===4)D.tks=D.allOpen.filter(t=>D.pending.has(t.id)).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
     else if(D.fl===3)D.tks=D.allOpen.filter(t=>D.lr[t.id]===false&&!D.pending.has(t.id)&&!newIds.has(t.id)).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
-    else D.tks=D.allOpen.slice();
+    else D.tks=D.allOpen.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
     D.pgs=1;
     rl();up();
     function setBadge(id,c){var b=document.getElementById(id);if(c>0){b.textContent=c;b.style.display='inline-flex'}else{b.style.display='none'}}
