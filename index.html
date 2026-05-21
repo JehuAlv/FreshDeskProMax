@@ -465,10 +465,11 @@ async function loadStats(){
             if(_statsRun!==run)return;
             var total=allT.filter(function(t){return !merged.has(t.id)}).length;
             var mine=myT.filter(function(t){return !noResp.has(t.id)&&!merged.has(t.id)}).length;
+            var closed=allT.filter(function(t){return !merged.has(t.id)&&t.responder_id===D.aid&&(t.status===4||t.status===5)}).length;
             var pct=total>0?Math.round(mine/total*100):0;
             var clr=pct>=30?'green':pct>=20?'amber':'red';
-            el.innerHTML=mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span>';
-            el.title=D.anm+': '+mine+' de '+total+' MES '+yr;
+            el.innerHTML=mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span> · <span style="color:var(--g400)">'+closed+' closed</span>';
+            el.title=D.anm+': '+mine+' de '+total+' MES '+yr+' · '+closed+' resolved/closed';
             el.style.display='';
         }
 
