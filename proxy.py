@@ -19,6 +19,7 @@ import create_ticket_folder as sp
 
 _sp_config = None
 _sp_token = None
+_sp_base_folder_id = None
 _sp_lock = threading.Lock()
 
 def _get_sp_config():
@@ -33,6 +34,13 @@ def _get_sp_token():
         config = _get_sp_config()
         _sp_token = sp.get_graph_token(config)
     return _sp_token
+
+def _get_sp_base_folder(token):
+    global _sp_base_folder_id
+    if _sp_base_folder_id is None:
+        config = _get_sp_config()
+        _sp_base_folder_id = sp.resolve_share_url(token, config["onedrive_folder_url"])
+    return _sp_base_folder_id
 
 def _is_cuda_error(body):
     try:
@@ -186,8 +194,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 and not e.endswith('.freshdesk.com')
             )
 
-            sp.ensure_folder(token, '', 'Tickets')
-            folder_id, created = sp.ensure_folder(token, 'Tickets', str(ticket_id))
+            base_folder_id = _get_sp_base_folder(token)
+            folder_id, created = sp.ensure_folder(token, base_folder_id, str(ticket_id))
 
             with ThreadPoolExecutor(max_workers=2) as pool:
                 share_future = pool.submit(sp.share_folder, token, folder_id, emails, config)

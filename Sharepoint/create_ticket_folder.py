@@ -25,6 +25,7 @@ def load_config(dry_run=False):
         "freshdesk_api_key": os.getenv("FRESHDESK_API_KEY"),
         "azure_client_id": os.getenv("AZURE_CLIENT_ID"),
         "azure_tenant_id": os.getenv("AZURE_TENANT_ID"),
+        "onedrive_folder_url": os.getenv("ONEDRIVE_FOLDER_URL", ""),
         "share_role": os.getenv("SHARE_ROLE", "write").lower(),
         "send_invitation": os.getenv("SEND_INVITATION", "false").lower() == "true",
         "exclude_emails": {
@@ -40,7 +41,7 @@ def load_config(dry_run=False):
     }
     required = ["freshdesk_domain", "freshdesk_api_key"]
     if not dry_run:
-        required += ["azure_client_id", "azure_tenant_id"]
+        required += ["azure_client_id", "azure_tenant_id", "onedrive_folder_url"]
     missing = [k.upper() for k in required if not config[k]]
     if missing:
         print(f"ERROR: Missing required environment variables: {', '.join(missing)}")
@@ -194,31 +195,41 @@ def graph_headers(token):
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
-def ensure_folder(token, parent_path, folder_name):
-    """Get or create a folder. Returns the item ID."""
+def resolve_share_url(token, share_url):
+    """Resolve a OneDrive/SharePoint sharing URL to a drive item ID."""
+    encoded = base64.urlsafe_b64encode(share_url.encode()).decode().rstrip("=")
+    share_token = f"u!{encoded}"
+    url = f"{GRAPH_BASE}/shares/{share_token}/driveItem"
+    resp = requests.get(url, headers=graph_headers(token))
+    resp.raise_for_status()
+    data = resp.json()
+    return data["id"]
+
+
+def ensure_folder(token, parent_id, folder_name):
+    """Get or create a subfolder under a parent item ID. Returns (item_id, created)."""
     headers = graph_headers(token)
+    base_url = f"{GRAPH_BASE}/me/drive/items/{parent_id}"
 
-    check_url = f"{GRAPH_BASE}/me/drive/root:/{parent_path}/{folder_name}"
-    resp = requests.get(check_url, headers=headers)
+    list_url = f"{base_url}/children?$filter=name eq '{folder_name}'"
+    resp = requests.get(list_url, headers=headers)
     if resp.status_code == 200:
-        item = resp.json()
-        return item["id"], False
-
-    if parent_path:
-        create_url = f"{GRAPH_BASE}/me/drive/root:/{parent_path}:/children"
-    else:
-        create_url = f"{GRAPH_BASE}/me/drive/root/children"
+        for item in resp.json().get("value", []):
+            if item.get("name") == folder_name and "folder" in item:
+                return item["id"], False
 
     body = {
         "name": folder_name,
         "folder": {},
         "@microsoft.graph.conflictBehavior": "fail",
     }
-    resp = requests.post(create_url, headers=headers, json=body)
+    resp = requests.post(f"{base_url}/children", headers=headers, json=body)
     if resp.status_code == 409:
-        check_resp = requests.get(check_url, headers=headers)
-        check_resp.raise_for_status()
-        return check_resp.json()["id"], False
+        resp2 = requests.get(list_url, headers=headers)
+        resp2.raise_for_status()
+        for item in resp2.json().get("value", []):
+            if item.get("name") == folder_name and "folder" in item:
+                return item["id"], False
     resp.raise_for_status()
     return resp.json()["id"], True
 
@@ -319,12 +330,18 @@ def main():
     print("\nAuthenticating with Microsoft Graph...")
     token = get_graph_token(config)
 
+    print("\nResolving target folder...")
+    try:
+        base_folder_id = resolve_share_url(token, config["onedrive_folder_url"])
+    except requests.HTTPError as e:
+        print(f"ERROR: Could not resolve OneDrive folder URL: {e}")
+        sys.exit(1)
+
     folder_name = str(ticket_id)
-    print(f"\nCreating folder 'Tickets/{folder_name}' in OneDrive...")
+    print(f"\nCreating folder '{folder_name}'...")
 
     try:
-        tickets_id, _ = ensure_folder(token, "", "Tickets")
-        folder_id, created = ensure_folder(token, "Tickets", folder_name)
+        folder_id, created = ensure_folder(token, base_folder_id, folder_name)
         if created:
             print(f"  Folder created.")
         else:
@@ -351,7 +368,7 @@ def main():
             print(f"    x {email}: {error}")
 
     link = get_share_link(token, folder_id)
-    print(f"\nDone. Folder: Tickets/{folder_name}")
+    print(f"\nDone. Folder: {folder_name}")
     if link:
         print(f"Link: {link}")
 
