@@ -49,8 +49,10 @@ nav .nbtn.ghost{background:none;color:var(--g600)}
 nav .nbtn.ghost:hover{background:var(--g100)}
 nav .conn-status{font:500 11px var(--f);color:var(--g400);white-space:nowrap}
 nav .conn-status.on{color:var(--green)}
-nav .ticket-stats{font:600 11px var(--f);color:var(--g500);white-space:nowrap;margin-left:8px;background:var(--g100);padding:2px 10px;border-radius:10px;cursor:default}
-nav .ticket-stats .pct{font-weight:700;padding:1px 6px;border-radius:8px;margin-left:2px}
+nav .ticket-stats{font:600 11px var(--f);color:var(--g500);white-space:nowrap;margin-left:8px;display:inline-flex;align-items:center;gap:6px;cursor:default}
+nav .ticket-stats .stat-group{display:inline-flex;align-items:center;gap:4px;background:var(--g100);padding:2px 10px;border-radius:10px}
+nav .ticket-stats .stat-label{font-weight:500;color:var(--g400);margin-right:2px}
+nav .ticket-stats .pct{font-weight:700;padding:1px 6px;border-radius:8px}
 nav .ticket-stats .pct.green{background:#dcfce7;color:#16a34a}
 nav .ticket-stats .pct.amber{background:#fef3c7;color:#d97706}
 nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
@@ -466,10 +468,13 @@ async function loadStats(){
             var total=allT.filter(function(t){return !merged.has(t.id)}).length;
             var mine=myT.filter(function(t){return !noResp.has(t.id)&&!merged.has(t.id)}).length;
             var closed=allT.filter(function(t){return !merged.has(t.id)&&t.responder_id===D.aid&&(t.status===4||t.status===5)}).length;
+            var totalClosed=allT.filter(function(t){return !merged.has(t.id)&&(t.status===4||t.status===5)}).length;
+            var closedPct=totalClosed>0?Math.round(closed/totalClosed*100):0;
             var pct=total>0?Math.round(mine/total*100):0;
             var clr=pct>=30?'green':pct>=20?'amber':'red';
-            el.innerHTML=mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span> · <span style="color:var(--g400)">'+closed+' closed</span>';
-            el.title=D.anm+': '+mine+' de '+total+' MES '+yr+' · '+closed+' resolved/closed';
+            var clrC=closedPct>=30?'green':closedPct>=20?'amber':'red';
+            el.innerHTML='<span class="stat-group"><span class="stat-label">Assigned</span>'+mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span></span><span class="stat-group"><span class="stat-label">Resolved</span>'+closed+' / '+totalClosed+' <span class="pct '+clrC+'">'+closedPct+'%</span></span>';
+            el.title=D.anm+' '+yr+': Assigned '+mine+' de '+total+' ('+pct+'%) · Resolved '+closed+' de '+totalClosed+' ('+closedPct+'%)';
             el.style.display='';
         }
 
@@ -2443,8 +2448,8 @@ async function createSPFolder(ticketId){
             console.log('[SharePoint]',msg);
         }
         if(failed.length){
-            const names=failed.map(f=>f.email).join(', ');
-            alert('SharePoint folder created, but sharing failed for:\n'+names+'\n\nThey may need to be added manually.');
+            const details=failed.map(f=>f.email+': '+f.error).join('\n');
+            alert('SharePoint folder created, but sharing failed for:\n\n'+details+'\n\nThey may need to be added manually.');
         }
     }catch(e){
         if(lbl)lbl.textContent='Error: '+e.message;
