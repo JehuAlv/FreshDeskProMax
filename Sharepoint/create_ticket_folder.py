@@ -262,9 +262,12 @@ def share_folder(token, item_id, emails, config):
         else:
             error_msg = ""
             try:
-                error_msg = resp.json().get("error", {}).get("message", resp.text)
+                err = resp.json().get("error", {})
+                code = err.get("code", "")
+                msg = err.get("message", resp.text)
+                error_msg = f"[{resp.status_code}/{code}] {msg}"
             except Exception:
-                error_msg = resp.text
+                error_msg = f"[{resp.status_code}] {resp.text}"
             failed.append((email, error_msg))
 
     return succeeded, failed
