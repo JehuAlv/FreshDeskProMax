@@ -623,7 +623,7 @@ async function loadStats(){
         render(allT,myT);
 
         var myIds=new Set(myT.map(function(t){return t.id}));
-        var unchecked=allT.filter(function(t){return !(t.id in cache)||(cache[t.id]===false&&myIds.has(t.id))});
+        var unchecked=allT.filter(function(t){return !(t.id in cache)||cache[t.id]===false});
         if(unchecked.length>0){
             for(var b=0;b<unchecked.length;b+=5){
                 if(_statsRun!==run)return;
@@ -3033,6 +3033,8 @@ async function confirmSendReply(){
                 }
             }
         }
+
+        try{var rc=JSON.parse(localStorage.getItem('fd_resp6')||'{}');rc[D.cur.id]=true;localStorage.setItem('fd_resp6',JSON.stringify(rc));_statsNoResp.delete(D.cur.id);if(_statsCache.resp6)_statsCache.resp6[D.cur.id]=true}catch(e){}
 
         if(window._resolveOnSend){
             D.allOpen=D.allOpen.filter(t=>t.id!==D.cur.id);
