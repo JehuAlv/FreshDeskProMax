@@ -1260,9 +1260,9 @@ function renderRight(){
 
     document.getElementById('tab-bar').innerHTML=
         '<div class="tab-row">'+
-        '<button class="on" onclick="tab(this,0)">Summary</button>'+
-        '<button onclick="tab(this,1)">Thread <span class="bdg">'+c.length+'</span></button>'+
-        '<button onclick="tab(this,2)">Quick Reply</button>'+
+        '<button class="on" onclick="tab(this,0)">Quick Reply</button>'+
+        '<button onclick="tab(this,1)">Summary</button>'+
+        '<button onclick="tab(this,2)">Thread <span class="bdg">'+c.length+'</span></button>'+
         '</div>';
 
     showPane(0);
@@ -1275,13 +1275,13 @@ function showPane(i){
     const t=D.cur,c=D.cvs;
     const el=document.getElementById('content');
     el.scrollTop=0;
-    if(i===0)el.innerHTML='<div class="rpad">'+summaryHTML(t,c)+'</div>';
-    else if(i===1)el.innerHTML='<div class="rpad">'+threadHTML(t,c)+'</div>';
-    else{
+    if(i===0){
         var k=t.id;
         if(!_replyCache[k])_replyCache[k]=replyHTML(t,c);
         el.innerHTML='<div class="rpad">'+_replyCache[k]+'</div>';
     }
+    else if(i===1)el.innerHTML='<div class="rpad">'+summaryHTML(t,c)+'</div>';
+    else el.innerHTML='<div class="rpad">'+threadHTML(t,c)+'</div>';
     document.getElementById('scroll-area').scrollTop=0;
 }
 
@@ -2175,19 +2175,23 @@ function replyHTML(t,c){
     }
 
     const pubMsgs=m.filter(x=>x.f!=='Note');
-    const lastMsg=pubMsgs.length?pubMsgs[pubMsgs.length-1]:null;
-    if(lastMsg){
-        const isC=lastMsg.f==='Customer';
-        const lbl=isC?(lastMsg.who||firstName):'Agent';
-        const clr=isC?'var(--orange)':'var(--blue)';
-        const bg=isC?'var(--orange-bg)':'var(--blue-bg)';
-        const cleanTxt=cleanEmailBody(lastMsg.t);
-        const preview=cleanTxt.length>500?cleanTxt.substring(0,500)+'…':cleanTxt;
-        h+='<div style="margin-bottom:14px;padding:12px;border-radius:10px;background:'+bg+';border-left:3px solid '+clr+'">'
-            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
-            +'<span style="font:600 11px/1 var(--f);color:'+clr+';text-transform:uppercase">'+(lang==='es'?'Último mensaje — ':'Last message — ')+esc(lbl)+'</span>'
-            +'<span style="font:11px var(--f);color:var(--g400)">'+ago(new Date(lastMsg.d))+' ago'+'</span></div>'
-            +'<div style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
+    const recentMsgs=pubMsgs.slice(-2);
+    if(recentMsgs.length){
+        h+='<div style="margin-bottom:14px;display:flex;flex-direction:column;gap:8px">';
+        recentMsgs.forEach(function(msg){
+            const isC=msg.f==='Customer';
+            const lbl=isC?(msg.who||firstName):'Agent';
+            const clr=isC?'var(--orange)':'var(--blue)';
+            const bg=isC?'var(--orange-bg)':'var(--blue-bg)';
+            const cleanTxt=cleanEmailBody(msg.t);
+            const preview=cleanTxt.length>300?cleanTxt.substring(0,300)+'…':cleanTxt;
+            h+='<div style="padding:10px 12px;border-radius:10px;background:'+bg+';border-left:3px solid '+clr+'">'
+                +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+                +'<span style="font:600 11px/1 var(--f);color:'+clr+';text-transform:uppercase">'+esc(lbl)+'</span>'
+                +'<span style="font:11px var(--f);color:var(--g400)">'+ago(new Date(msg.d))+' ago</span></div>'
+                +'<div style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
+        });
+        h+='</div>';
     }
 
     h+='<div class="reply-compose">'
