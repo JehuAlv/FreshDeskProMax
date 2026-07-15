@@ -483,7 +483,7 @@ function getAIExamples(lang,n,customerMsg){
     }
     return result;
 }
-let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',sig:'',allOpen:[],lr:{},canned:null,newTks:[],pending:_pend};
+let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',sig:'',allOpen:[],lr:{},newTks:[],pending:_pend};
 
 document.getElementById('inp-search').onkeydown=e=>{if(e.key==='Enter')doSearch()};
 document.getElementById('inp-key').onkeydown=e=>{if(e.key==='Enter')connect()};
@@ -534,7 +534,6 @@ async function connect(){
     try{
         const me=await get('agents/me');D.aid=me.id;D.anm=me.contact?me.contact.name:'Agent';D.sig=me.signature||'';
         localStorage.setItem('fd_apikey',D.key);st(D.anm,1);
-        loadCanned();
         D._cacheNew=JSON.parse(localStorage.getItem('fd_cache_new')||'{}');
         if(Object.keys(D._cacheNew).length)D._earlyNewIds=new Set(Object.keys(D._cacheNew).map(Number));
         await Promise.all([loadNewTickets(),load()]);
@@ -957,18 +956,6 @@ function dashDrill(key,label){
     document.getElementById('tab-bar').innerHTML='';
 }
 
-function loadCanned(){
-    const cached=localStorage.getItem('fd_canned');
-    if(cached){try{D.canned=JSON.parse(cached);return}catch(e){}}
-    get('canned_response_folders').then(folders=>{
-        if(!folders||!folders.length){D.canned=[];return}
-        return Promise.all(folders.map(f=>get('canned_response_folders/'+f.id+'/responses').catch(()=>[]))).then(results=>{
-            var all=[].concat(...results);
-            D.canned=all.filter(c=>c.title&&(c.title.includes('[MES]')||c.title.includes('[BRM]')));
-            try{localStorage.setItem('fd_canned',JSON.stringify(D.canned))}catch(e){}
-        });
-    }).catch(()=>{D.canned=[]});
-}
 
 async function fetchByStatus(st){
     try{
@@ -1505,63 +1492,7 @@ function findTriedSolutions(msgs){
     return tried;
 }
 
-function isNewRequestInquiry(textLow){
-    return /(?:opciones|options|desarrollo|development|cfx|customiz|personali|integra|what.*can|qué.*puede|qué.*ofrece|me\s*gustar[ií]a\s*saber|like\s*to\s*know|capabilities|features|funcionalidades|cotiza|quot|proposal|propuesta)/i.test(textLow);
-}
-var _cannedStopWords=new Set(['new','request','information','from','with','about','this','that','have','been','para','como','esta','pero','nuevo','nueva','solicitud',
-    'please','could','would','should','will','need','make','sure','also','following','puede','favor','puede','debe','aseg','siguiente','favor']);
-function matchCanned(issueLow,allTextLow,ctx,lang){
-    if(!D.canned||!D.canned.length)return[];
-    const stopWords=_cannedStopWords;
-    const words=issueLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
-    return D.canned.filter(cr=>{
-        const title=cr.title.toLowerCase();
-        if(title.includes('new request')&&!isNewRequestInquiry(allTextLow))return false;
-        const content=(cr.content_text||strip(cr.content||'')).toLowerCase();
-        const contentWords=content.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>4&&!stopWords.has(w));
-        const uniqueContent=[...new Set(contentWords)];
-        const titleWords=title.replace(/[\[\]()]/g,'').split(/\s+/).filter(w=>w.length>3&&!stopWords.has(w));
-        let score=0;
-        for(const tw of titleWords){
-            if(issueLow.includes(tw))score+=3;
-            else if(allTextLow.includes(tw))score+=1;
-        }
-        let contentHits=0;
-        for(const cw of uniqueContent){
-            if(issueLow.includes(cw)){score+=2;contentHits++}
-            else if(allTextLow.includes(cw)){score+=1;contentHits++}
-        }
-        if(contentHits>=3)score+=3;
-        for(const w of words){
-            if(content.includes(w))score+=2;
-        }
-        if(ctx.isBRM&&title.includes('[brm]'))score+=2;
-        if(ctx.isInspection&&title.includes('[mes]'))score+=2;
-        if(ctx.isError&&(content.includes('error')||title.includes('error')))score+=2;
-        cr._score=score;
-        cr._id=cr.id;
-        return score>=10;
-    }).sort((a,b)=>b._score-a._score).slice(0,2);
-}
-
 /* =============== SMART REPLIES =============== */
-function cannedBody(cr,firstName,tid,hi,bye,lang){
-    let body=strip(cr.content||'').replace(/\{\{ticket\.requester\.name\}\}/gi,firstName).replace(/\{\{ticket\.id\}\}/gi,String(tid||''));
-    const hasAttach=/\[attachment\]|\[image\]/i.test(body);
-    body=body.replace(/\[attachment\]/gi,'').replace(/\[image\]/gi,'').trim();
-    if(hasAttach){
-        const note=lang==='es'
-            ?'⚠️ Esta canned response ("'+cr.title+'") contiene adjuntos.\nUsar "Insert Canned Response" → "'+cr.title+'" en Freshdesk para incluir los archivos adjuntos.'
-            :'⚠️ This canned response ("'+cr.title+'") contains attachments.\nUse "Insert Canned Response" → "'+cr.title+'" in Freshdesk to include the attached files.';
-        if(!body||body.length<10){
-            const intro=lang==='es'?'Adjunto encontrarás la información solicitada. Por favor sigue las instrucciones del manual adjunto.':'Please find the requested information attached. Follow the instructions provided in the attached manual.';
-            body=hi+',\n\n'+intro+'\n\n'+bye+'\n\n---\n'+note;
-        }else{
-            body=body+'\n\n---\n'+note;
-        }
-    }
-    return body;
-}
 
 function cleanEmailBody(text){
     if(!text)return '';
@@ -2024,9 +1955,6 @@ function replyHTML(t,c){
 
     const issueText=(t.subject||'')+'  '+(firstCust?cleanEmailBody(firstCust.t):'');
     const issueLow=issueText.toLowerCase();
-    const cannedMatch=matchCanned(issueLow,cleanTextLow,ctx,lang);
-    const usedCannedIds=new Set();
-
     const intent=detectIntent(issueLow);
 
     if(a.sit==='new'){
@@ -2052,7 +1980,7 @@ function replyHTML(t,c){
             });
         }
 
-        if(!intentBody&&!kbHits.length&&!cannedMatch.length){
+        if(!intentBody&&!kbHits.length){
             const needsInfo=!ctx.hasScreenshot&&!ctx.hasLogs&&(ctx.isError||ctx.isTechnical);
             R.push({g:gRec,nm:l.firstResponse,
                 why:(lang==='es'?'Cliente reportó: "':'Customer reported: "')+trunc(issueText,120)+'"',
@@ -2065,16 +1993,6 @@ function replyHTML(t,c){
                 '\n\n'+bye});
         }
 
-        if(cannedMatch.length){
-            cannedMatch.forEach(cr=>{
-                usedCannedIds.add(cr._id);
-                const body=cannedBody(cr,firstName,t.id,hi,bye,lang);
-                R.push({g:gAlt,nm:cr.title,
-                    why:(lang==='es'?'Canned response relacionada: "':'Related canned response: "')+cr.title+'"',
-                    body:body});
-            });
-        }
-
         if(ctx.isTechnical)
             R.push({g:gAlt,nm:l.schedRemote,
                 why:(lang==='es'?'Tema técnico sobre ':'Technical issue about ')+ctx.mainIssue+(lang==='es'?' — remoto es más rápido':' — remote is faster'),
@@ -2082,15 +2000,6 @@ function replyHTML(t,c){
     }
 
     if(a.sit==='respond'){
-        if(cannedMatch.length){
-            cannedMatch.forEach(cr=>{
-                usedCannedIds.add(cr._id);
-                const body=cannedBody(cr,firstName,t.id,hi,bye,lang);
-                R.push({g:gRec,nm:cr.title,
-                    why:(lang==='es'?'Canned response coincide con problema inicial: "':'Canned response matches initial issue: "')+trunc(issueText,100)+'"',
-                    body:body});
-            });
-        }
         const custText=lastCust?lastCust.t:'';
         const custLow=custText.toLowerCase();
         const hasQ=custText.match(/\?/);
@@ -2224,25 +2133,6 @@ function replyHTML(t,c){
     R.push({g:gClose,nm:l.closeTicket,why:(lang==='es'?'Usar cuando ':'Use when ')+subj+(lang==='es'?' esté completamente resuelto':' is fully resolved'),
         body:hi+',\n\n'+l.gladConfirm+(ctx.hadRemoteSession?'\n\n'+l.thankRemoteTime:'')+'\n\n'+l.willClose+'\n\n'+bye});
 
-    if(D.canned&&D.canned.length){
-        const gCanned='Canned Responses';
-        const remaining=D.canned.filter(cr=>!usedCannedIds.has(cr.id));
-        const topics=findTopics(allTextLow);
-        const relevantCanned=remaining.filter(cr=>{
-            const title=cr.title.toLowerCase();
-            if(title.includes('new request')&&!isNewRequestInquiry(allTextLow))return false;
-            if(topics.includes('BRM/KBR')&&title.includes('[brm]'))return true;
-            if((topics.includes('Inspection')||topics.includes('Export')||topics.includes('Error'))&&title.includes('[mes]'))return true;
-            if(ctx.isBRM&&title.includes('[brm]'))return true;
-            if(ctx.isInspection&&title.includes('[mes]'))return true;
-            return false;
-        });
-        relevantCanned.forEach(cr=>{
-            const body=cannedBody(cr,firstName,t.id,hi,bye,lang);
-            R.push({g:gCanned,nm:cr.title,why:lang==='es'?'Canned response de Freshdesk':'Freshdesk canned response',body:body});
-        });
-    }
-
     const threadWords=allTextLow.replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).filter(w=>w.length>3);
     R.forEach(r=>{
         const bLow=r.body.toLowerCase();
@@ -2255,7 +2145,7 @@ function replyHTML(t,c){
     R.sort((a,b)=>b._score-a._score);
     if(R.length>3)R.length=3;
     window._R=R;
-    window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText,suggestions:R,cannedAll:D.canned||[]};
+    window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText,suggestions:R};
     const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
     let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
         +'<div class="lang-badge" style="margin-bottom:0">'+(lang==='es'?'Español detectado':'English detected')+'</div>'
@@ -2289,6 +2179,11 @@ function replyHTML(t,c){
         +'<button class="ai-btn" style="background:linear-gradient(135deg,#ef4444,#dc2626)" onclick="openCloseTicket()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>'
         +(lang==='es'?'Cerrar Ticket':'Close Ticket')+'</button>'
         +'</div>'
+        +'<div style="margin-top:14px">'
+        +'<textarea id="custom-reply" rows="5" placeholder="'+(lang==='es'?'Escribe tu respuesta aquí...':'Write your reply here...') +'" style="width:100%;padding:10px 12px;border:1px solid var(--g200);border-radius:10px;font:13px/1.5 var(--f);resize:vertical;box-sizing:border-box"></textarea>'
+        +'<div style="display:flex;gap:8px;margin-top:8px">'
+        +'<button class="rc-copy btn-send" onclick="openSendModal(document.getElementById(\'custom-reply\').value)">'+(lang==='es'?'Enviar Respuesta':'Send Reply')+'</button>'
+        +'</div></div>'
         +'<div id="ai-out"></div>';
 
     for(const[g,items]of Object.entries(G)){
@@ -2566,27 +2461,30 @@ BASE PHRASES (adapt to context):
         usrParts.push('\nCUSTOMER\'S LAST MESSAGE (you MUST respond to THIS):\n'+lastCustText);
     }
 
-    usrParts.push('');
-    usrParts.push('=== TICKET CONTEXT ===');
-    usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
-    usrParts.push('Customer: '+rc.firstName);
-    if(rc.ctx.mainIssue)usrParts.push('Issue: '+rc.ctx.mainIssue);
-    if(hasImages)usrParts.push('⚠ Customer sent images/screenshots (you CANNOT see them)');
+    var isRegenerate=extraCtx&&extraCtx.length>0&&window._aiReply;
+    if(!isRegenerate){
+        usrParts.push('');
+        usrParts.push('=== TICKET CONTEXT ===');
+        usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
+        usrParts.push('Customer: '+rc.firstName);
+        if(rc.ctx.mainIssue)usrParts.push('Issue: '+rc.ctx.mainIssue);
+        if(hasImages)usrParts.push('⚠ Customer sent images/screenshots (you CANNOT see them)');
 
-    usrParts.push('\nCONVERSATION THREAD (for context only — respond to the LAST message above):');
-    usrParts.push(thread);
+        usrParts.push('\nCONVERSATION THREAD (for context only — respond to the LAST message above):');
+        usrParts.push(thread);
 
-    if(spLink)usrParts.push('\nSHAREPOINT FOLDER: '+spLink+'\nWhen asking customer to upload files, include this link.\n');
-    if(kbSection)usrParts.push('\nVERIFIED SOLUTIONS (use if relevant):\n'+kbSection);
-    if(sugSection)usrParts.push('\nEXAMPLE REPLIES:\n'+sugSection);
-    if(triedList)usrParts.push('\nAlready tried (do NOT suggest again): '+triedList);
+        if(spLink)usrParts.push('\nSHAREPOINT FOLDER: '+spLink+'\nWhen asking customer to upload files, include this link.\n');
+        if(kbSection)usrParts.push('\nVERIFIED SOLUTIONS (use if relevant):\n'+kbSection);
+        if(sugSection)usrParts.push('\nEXAMPLE REPLIES:\n'+sugSection);
+        if(triedList)usrParts.push('\nAlready tried (do NOT suggest again): '+triedList);
 
-    var examples=getAIExamples(esL?'es':'en',2,lastCustText);
-    if(examples.length){
-        usrParts.push('\n=== LEARNED EXAMPLES (this agent\'s real replies — match this style) ===');
-        examples.forEach(function(ex){
-            usrParts.push('Customer: '+ex.c+'\nAgent replied: '+ex.a+'\n');
-        });
+        var examples=getAIExamples(esL?'es':'en',2,lastCustText);
+        if(examples.length){
+            usrParts.push('\n=== LEARNED EXAMPLES (this agent\'s real replies — match this style) ===');
+            examples.forEach(function(ex){
+                usrParts.push('Customer: '+ex.c+'\nAgent replied: '+ex.a+'\n');
+            });
+        }
     }
 
     usrParts.push('\nWrite ONLY the email. Start with "'+rc.hi+'," end with "'+rc.bye+'". Nothing else.');
