@@ -2171,7 +2171,7 @@ function replyHTML(t,c){
         +(lang==='es'?'EN':'ES')
         +'</button></div>';
     const pubMsgs=m.filter(x=>x.f!=='Note');
-    const recentMsgs=pubMsgs.slice(-2);
+    const recentMsgs=pubMsgs.slice(-4);
     if(recentMsgs.length){
         h+='<div style="margin-bottom:14px;display:flex;flex-direction:column;gap:8px">';
         recentMsgs.forEach(function(msg){
