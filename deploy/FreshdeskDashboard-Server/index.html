@@ -458,6 +458,27 @@ const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed',8:'
 var _praw=JSON.parse(localStorage.getItem('fd_pending')||'[]');
 var _pend=new Set(Array.isArray(_praw)?_praw:Object.keys(_praw).map(Number));
 
+var _aiSeedExamples=[
+{c:"error crash not working problem",a:"I would like to check the issue remotely. Please let me know what time works best for you.",l:"en"},
+{c:"error falla problema no funciona",a:"Comprendo, ¿me puedes dar acceso remoto para revisarlo?",l:"es"},
+{c:"here are the logs attached dump files",a:"Thank you! I will review and keep you posted.",l:"en"},
+{c:"adjunto los logs te comparto los registros",a:"Recibido, lo revisaré y te doy seguimiento.",l:"es"},
+{c:"thanks resolved working fixed no more issues",a:"Great to hear! Let me know if you need any further assistance.",l:"en"},
+{c:"gracias ya funciona resuelto todo bien",a:"Me da gusto, cualquier cosa estamos para apoyarte.",l:"es"},
+{c:"teamviewer remote session tv id password credentials",a:"I am available now. Please give me the TeamViewer session.",l:"en"},
+{c:"teamviewer acceso remoto credenciales sesion",a:"Claro, ¿me compartes las credenciales de TeamViewer?",l:"es"},
+{c:"i will check test verify get back health check tomorrow",a:"Sounds good, take your time. I will be here if you need anything.",l:"en"},
+{c:"voy a verificar revisar probar mañana te confirmo",a:"Perfecto, quedo al pendiente de tu confirmación.",l:"es"},
+{c:"done installed applied loaded listo ya lo hice",a:"Is everything working properly now?",l:"en"},
+{c:"listo ya lo instalé ya lo apliqué ya cargué",a:"¿Todo funcionando correctamente?",l:"es"},
+{c:"how to can you is it possible question",a:"Please refer to the following steps:",l:"en"},
+{c:"como puedo es posible pregunta",a:"Claro, los pasos serían los siguientes:",l:"es"},
+{c:"still same problem persists again otra vez",a:"Could you share remote access so I can take a look?",l:"en"},
+{c:"sigue igual mismo problema persiste otra vez",a:"Comprendo, ¿me puedes dar acceso remoto para revisarlo directamente?",l:"es"},
+{c:"available now schedule time when hora disponible",a:"Are you available now? If so, please provide TeamViewer session.",l:"en"},
+{c:"disponible hora cuando sesion remota",a:"¿Qué hora te parece bien para la sesión remota?",l:"es"},
+{c:"quotation cotizacion quote precio",a:"Adjunto cotización. Una vez recibida, el tiempo de desarrollo es de aproximadamente 4 semanas.",l:"es"}
+];
 var _aiExamples=JSON.parse(localStorage.getItem('fd_ai_examples')||'[]');
 var _aiCorrections=JSON.parse(localStorage.getItem('fd_ai_corrections')||'[]');
 function saveAIExample(customerMsg,agentReply,lang,subject){
@@ -482,7 +503,8 @@ function getCorrectionHints(lang,n){
 }
 var _aiStopWords=new Set(['the','a','an','is','are','was','were','be','been','to','of','in','for','on','with','at','by','that','this','it','and','or','but','not','no','from','as','do','did','has','have','had','will','can','could','would','should','i','you','we','they','he','she','me','my','your','our','el','la','los','las','un','una','de','del','en','por','para','con','que','es','son','no','se','lo','al','como','su','nos','le','te','mi','tu','ya','si','más','muy']);
 function getAIExamples(lang,n,customerMsg){
-    var matching=_aiExamples.filter(function(x){return x.l===lang});
+    var all=_aiSeedExamples.concat(_aiExamples);
+    var matching=all.filter(function(x){return x.l===lang});
     if(!customerMsg||!matching.length)return matching.slice(-n);
     var stop=_aiStopWords;
     var words=customerMsg.toLowerCase().replace(/[^a-záéíóúñü\s]/g,'').split(/\s+/).filter(function(w){return w.length>2&&!stop.has(w)});
@@ -2393,39 +2415,62 @@ function aiPrompt(rc,extraCtx,spLink){
     const sys=esL
 ?`Agente de soporte KYA MES, Koh Young (BRM para AOI/SPI).
 
-TONO: Casual, directo, amigable. Tuteo. Como un compañero técnico que ayuda, no un robot corporativo.
+TONO: Directo, técnico, casual. Tuteo. Sin formalidades excesivas. Hablas como ingeniero que ayuda a otro ingeniero.
 
-FORMATO: ${rc.hi}, → 1-3 oraciones cortas → ${rc.bye}
-NADA después de "${rc.bye}". Sin firma.
+FORMATO: ${rc.hi}, → respuesta directa → ${rc.bye}
+NADA después de "${rc.bye}". Sin firma, sin nombre, sin título.
+
+CÓMO RESPONDES (aprende de estos ejemplos reales):
+- Error/problema: "Comprendo, ¿me puedes dar acceso remoto para revisarlo?" o "¿Nos podrías compartir el Issue Report de BRM? (Help > Issue Report)"
+- Cliente envió info/logs: "Recibido, lo revisaré y te doy seguimiento." o "Gracias, lo comparto con el equipo."
+- Cliente confirma acción: "¿Todo funcionando correctamente?" o "Pueden intercambiar [componente] con otro equipo?"
+- Pregunta técnica: Respuesta concreta. Si no sabes: "Lo verifico y te confirmo."
+- Pide acceso remoto: "Claro, ¿me compartes las credenciales de TeamViewer?"
+- Sesión remota lista: "En un momento me conecto."
+- Problema persiste: "Comprendo, ¿cuenta con [spare part/alternativa] para descartar?" o solicita acceso remoto.
+- Gracias/resuelto: "Me da gusto, cualquier cosa estamos para apoyarte."
+- Seguimiento: "¿Pudieron verificar lo anterior?" o "¿Aún requieren soporte?"
 
 REGLAS:
-- Lee el ÚLTIMO mensaje del cliente. Responde SOLO a eso.
+- Lee el ÚLTIMO mensaje. Responde SOLO a eso.
 - No repitas lo que dijo el cliente.
 - No inventes — si no sabes: "Lo verifico y te confirmo."
-- Una pregunta a la vez. Confirmaciones = 1 oración.
-- NUNCA menciones cerrar/mantener ticket.
-- Error → pide Issue Report (BRM > Help > Issue Report).
-- Necesitas ver → pide TeamViewer.${imgRule}
+- Una pregunta/acción a la vez.
+- Si necesitas ver → pide TeamViewer o VNC.
+- Error nuevo → pide Issue Report (BRM > Help > Issue Report).
+- NUNCA menciones cerrar/mantener ticket.${imgRule}
 
-PROHIBIDO: "Estimado/a", "Le informo", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "cerrar este ticket"${correctionSection}`
+PROHIBIDO: "Estimado/a", "Le informo", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "cerrar este ticket", "Quedo al pendiente de sus comentarios"${correctionSection}`
 
 :`KYA MES support agent, Koh Young (BRM for AOI/SPI).
 
-TONE: Casual, direct, friendly. Like a technical colleague helping out, not a corporate robot.
+TONE: Direct, technical, casual. Like an engineer helping another engineer. No corporate fluff.
 
-FORMAT: ${rc.hi}, → 1-3 short sentences → ${rc.bye}
-NOTHING after "${rc.bye}". No signature.
+FORMAT: ${rc.hi}, → direct response → ${rc.bye}
+NOTHING after "${rc.bye}". No signature, no name, no title.
+
+HOW YOU RESPOND (learn from these real examples):
+- Error/problem: "I would like to check this remotely. Please let me know what time works best for you." or "Could you please share the BRM Issue Report? (Help > Issue Report)"
+- Customer sent info/logs: "Thank you! I will review and keep you posted." or "Thank you for the data. I shared it with our HQ."
+- Customer confirms action: "Is everything working properly now?" or "Please try changing it to [value] and check if it works."
+- Technical question: Direct answer. If unsure: "Let me check and confirm."
+- Remote access: "I am available now. Please give me TeamViewer session." or "Are you available at [time]?"
+- Problem persists: "I reported it to our HQ and will keep you posted." or "Could you share remote access so I can take a look?"
+- Thanks/resolved: "Great to hear! Let me know if you need any further assistance."
+- Follow-up: "Were you able to check on this?" or "Do you still need assistance?"
+- Files to share: "Please upload the files to the following SharePoint folder: [link]"
+- Software update needed: "Please download [version] and apply it. Let me know if any issues arise."
 
 RULES:
 - Read the customer's LAST message. Respond ONLY to that.
 - Do NOT repeat what the customer said.
 - Do NOT invent — if unsure: "Let me check and confirm."
-- One question at a time. Confirmations = 1 sentence.
-- NEVER mention closing/keeping ticket.
-- Error → ask for Issue Report (BRM > Help > Issue Report).
-- Need to see → ask for TeamViewer.${imgRule}
+- One question/action at a time.
+- Need to see → ask for TeamViewer.
+- New error → ask for Issue Report (BRM > Help > Issue Report).
+- NEVER mention closing/keeping ticket.${imgRule}
 
-FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "close this ticket"${correctionSection}`;
+FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "close this ticket", "I will proceed to close"${correctionSection}`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
 
@@ -2473,7 +2518,7 @@ FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate",
         if(sugSection)usrParts.push('\nEXAMPLE REPLIES:\n'+sugSection);
         if(triedList)usrParts.push('\nAlready tried (do NOT suggest again): '+triedList);
 
-        var examples=getAIExamples(esL?'es':'en',2,lastCustText);
+        var examples=getAIExamples(esL?'es':'en',3,lastCustText);
         if(examples.length){
             usrParts.push('\n=== LEARNED EXAMPLES (this agent\'s real replies — match this style) ===');
             examples.forEach(function(ex){
