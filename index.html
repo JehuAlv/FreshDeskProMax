@@ -345,29 +345,6 @@ nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
 .jump-btn:hover{background:var(--blue-bg);border-color:rgba(0,122,255,.2)}
 
 /* ===== REPLIES ===== */
-.rg{margin-bottom:24px}
-.rg h3{font:600 11px var(--f);color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
-.rc{
-    background:var(--white);border-radius:var(--r);padding:18px 20px;margin-bottom:10px;
-    box-shadow:0 1px 3px rgba(0,0,0,.04);border:1px solid transparent;
-    transition:all .2s;animation:fadeUp .12s ease;
-}
-.rc:hover{border-color:var(--blue);box-shadow:0 4px 12px rgba(0,122,255,.08)}
-.rc .rc-title{font:600 15px/1.3 var(--f);color:var(--black);letter-spacing:-.2px}
-.rc .rc-why{font:12px var(--f);color:var(--blue);margin-top:2px}
-.rc .rc-body{
-    margin-top:10px;padding:14px 16px;background:var(--g50);border-radius:var(--r2);
-    font:13px/1.7 var(--f);color:var(--g600);white-space:pre-wrap;
-    max-height:80px;overflow:hidden;position:relative;cursor:pointer;transition:max-height .3s;
-}
-.rc .rc-body.shut::after{content:'';position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,var(--g50));pointer-events:none}
-.rc .rc-body.open{max-height:1000px}
-.rc .rc-copy{
-    margin-top:10px;height:32px;padding:0 18px;border:none;border-radius:980px;
-    font:500 12px/32px var(--f);cursor:pointer;background:var(--blue);color:var(--white);transition:all .15s;
-}
-.rc .rc-copy:hover{background:var(--blue2)}
-.rc .rc-copy.did{background:var(--green)}
 .lang-badge{display:inline-block;padding:4px 12px;border-radius:980px;font:600 10px/1 var(--f);letter-spacing:0.3px;color:var(--blue);background:var(--blue-bg);margin-bottom:12px;text-transform:uppercase}
 .ctx-box{padding:8px 12px;border-radius:8px;background:var(--orange-bg);color:#b36b00;font:500 11px/1.4 var(--f);margin-bottom:12px}
 .reply-compose{margin-top:16px;border-radius:var(--r2);border:1px solid var(--g200);background:var(--white);overflow:hidden;transition:border-color .2s,box-shadow .2s}
@@ -426,8 +403,6 @@ nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
 .send-modal-status{font:500 12px var(--f);color:var(--g500);margin-right:auto}
 .send-modal-status.err{color:var(--red)}
 .send-modal-status.ok{color:#16a34a}
-.btn-send{background:var(--blue);color:#fff;margin-left:4px}
-.btn-send:hover{background:var(--blue2)}
 </style>
 </head>
 <body>
@@ -2174,7 +2149,6 @@ function replyHTML(t,c){
     if(R.length>3)R.length=3;
     window._R=R;
     window._replyCtx={t,m,lang,hi,bye,firstName,subj,ctx,issueText,suggestions:R};
-    const G={};R.forEach((r,i)=>{if(!G[r.g])G[r.g]=[];G[r.g].push({...r,i})});
     let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
         +'<div class="lang-badge" style="margin-bottom:0">'+(lang==='es'?'Español detectado':'English detected')+'</div>'
         +'<button onclick="toggleLang()" style="background:none;border:1px solid var(--g200);border-radius:980px;padding:3px 10px;font:600 10px/1 var(--f);color:var(--g500);cursor:pointer;display:flex;align-items:center;gap:4px" title="'+(lang==='es'?'Switch to English':'Cambiar a Español')+'">'
@@ -2216,16 +2190,6 @@ function replyHTML(t,c){
         +(lang==='es'?'Cerrar':'Close')+'</button>'
         +'</div></div>'
         +'<div id="ai-out"></div>';
-
-    for(const[g,items]of Object.entries(G)){
-        h+='<div class="rg"><h3>'+esc(g)+'</h3>';
-        items.forEach(r=>{
-            h+='<div class="rc"><div class="rc-title">'+esc(r.nm)+'</div><div class="rc-why">'+esc(r.why)+'</div>'+
-                '<div class="rc-body shut" onclick="this.classList.toggle(\'shut\');this.classList.toggle(\'open\')">'+esc(r.body)+'</div>'+
-                '<button class="rc-copy" onclick="cp('+r.i+',this)">Copy to clipboard</button>'+
-                '<button class="rc-copy btn-send" onclick="openSendModal(window._R['+r.i+'].body)">Send Reply</button></div>';
-        });h+='</div>';
-    }
     return h;
 }
 
@@ -2318,7 +2282,6 @@ function extractContext(allLow,m,lastCust,lastAgent){
 }
 
 function openFd(){if(D.dom&&D.cur&&D.cur.id)window.open('https://'+D.dom+'/a/tickets/'+D.cur.id,'_blank')}
-function cp(i,b){openFd();navigator.clipboard.writeText(window._R[i].body).then(()=>{b.textContent='Copied!';b.classList.add('did');setTimeout(()=>{b.textContent='Copy to clipboard';b.classList.remove('did')},1500)})}
 function cpText(txt,b){openFd();var orig=b.innerHTML;navigator.clipboard.writeText(txt).then(()=>{b.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Copied!';b.classList.add('did');setTimeout(()=>{b.innerHTML=orig;b.classList.remove('did')},1500)})}
 
 function aiPrompt(rc,extraCtx,spLink){
