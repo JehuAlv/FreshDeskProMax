@@ -652,7 +652,7 @@ async function loadStats(){
 
 function renderDashboard(){
     var allT=_statsCache.allT;
-    if(!allT||!allT.length){document.getElementById('content').innerHTML='<div class="rpad"><p style="color:var(--g500)">Stats not loaded yet. Wait for the stats bar to finish loading.</p></div>';return}
+    if(!allT||!allT.length){document.getElementById('content').innerHTML='<div class="dash" style="text-align:center;padding-top:120px"><div class="dash-title">Loading Dashboard</div><p style="color:var(--g500);margin:16px 0 24px">Fetching ticket data...</p><div style="width:200px;height:4px;background:var(--g100);border-radius:2px;margin:0 auto;overflow:hidden"><div style="width:40%;height:100%;background:var(--blue);border-radius:2px;animation:barPulse 1.5s ease infinite"></div></div><style>@keyframes barPulse{0%{width:20%;margin-left:0}50%{width:50%;margin-left:25%}100%{width:20%;margin-left:80%}}</style></div>';document.getElementById('hdr').innerHTML='<div class="hdr-box"><h1>Dashboard</h1></div>';document.getElementById('tab-bar').innerHTML='';if(!D._dashWait){D._dashWait=setInterval(function(){if(_statsCache.allT&&_statsCache.allT.length){clearInterval(D._dashWait);D._dashWait=null;renderDashboard()}},500)}return}
     var merged=_statsMerged,noResp=_statsNoResp;
     var yr=new Date().getFullYear();
     var aMap=D._agentMap||{};
