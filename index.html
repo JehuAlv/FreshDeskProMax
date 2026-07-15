@@ -459,11 +459,26 @@ var _praw=JSON.parse(localStorage.getItem('fd_pending')||'[]');
 var _pend=new Set(Array.isArray(_praw)?_praw:Object.keys(_praw).map(Number));
 
 var _aiExamples=JSON.parse(localStorage.getItem('fd_ai_examples')||'[]');
+var _aiCorrections=JSON.parse(localStorage.getItem('fd_ai_corrections')||'[]');
 function saveAIExample(customerMsg,agentReply,lang,subject){
     if(!customerMsg||!agentReply)return;
     _aiExamples.push({c:customerMsg.substring(0,500),a:agentReply.substring(0,500),l:lang,s:(subject||'').substring(0,80),d:Date.now()});
     if(_aiExamples.length>200)_aiExamples=_aiExamples.slice(-200);
     try{localStorage.setItem('fd_ai_examples',JSON.stringify(_aiExamples))}catch(e){}
+}
+function saveAICorrection(aiDraft,userEdit,lang){
+    if(!aiDraft||!userEdit||aiDraft===userEdit)return;
+    _aiCorrections.push({ai:aiDraft.substring(0,400),user:userEdit.substring(0,400),l:lang,d:Date.now()});
+    if(_aiCorrections.length>50)_aiCorrections=_aiCorrections.slice(-50);
+    try{localStorage.setItem('fd_ai_corrections',JSON.stringify(_aiCorrections))}catch(e){}
+}
+function getCorrectionHints(lang,n){
+    var recent=_aiCorrections.filter(function(x){return x.l===lang}).slice(-n);
+    if(!recent.length)return '';
+    var hints=recent.map(function(c){return '\n- YOU wrote: "'+c.ai.substring(0,150)+'..."\n  USER changed to: "'+c.user.substring(0,150)+'..."'});
+    return (lang==='es'
+        ?'\n\nCORRECCIONES PREVIAS (el usuario editó tus respuestas — aprende de esto):'
+        :'\n\nPREVIOUS CORRECTIONS (user edited your replies — learn from this):')+hints.join('');
 }
 var _aiStopWords=new Set(['the','a','an','is','are','was','were','be','been','to','of','in','for','on','with','at','by','that','this','it','and','or','but','not','no','from','as','do','did','has','have','had','will','can','could','would','should','i','you','we','they','he','she','me','my','your','our','el','la','los','las','un','una','de','del','en','por','para','con','que','es','son','no','se','lo','al','como','su','nos','le','te','mi','tu','ya','si','más','muy']);
 function getAIExamples(lang,n,customerMsg){
@@ -2373,60 +2388,44 @@ function aiPrompt(rc,extraCtx,spLink){
         :'\n- IMPORTANT: The customer sent images/screenshots you CANNOT see. NEVER pretend you can see them. Acknowledge receipt and ask for a text description if you need more context, or offer a remote session to see it directly.')
         :'';
 
+    const correctionSection=getCorrectionHints(esL?'es':'en',3);
+
     const sys=esL
-?`Eres agente de soporte del equipo KYA MES en Koh Young Technology (BRM para AOI/SPI).
+?`Agente de soporte KYA MES, Koh Young (BRM para AOI/SPI).
 
-REGLA PRINCIPAL: Lee el ÚLTIMO mensaje del cliente con cuidado. Tu respuesta DEBE responder directamente a lo que el cliente dijo o preguntó. Si no sabes la respuesta, di "Lo verifico y te confirmo." NUNCA inventes información ni respondas algo que el cliente no preguntó.
+TONO: Casual, directo, amigable. Tuteo. Como un compañero técnico que ayuda, no un robot corporativo.
 
-FORMATO:
-- Empieza con: ${rc.hi},
-- 2-5 oraciones. Tuteo ("tú"). 200-500 caracteres.
-- Pregunta técnica → respuesta concreta o "Lo verifico y te confirmo." Tema complejo → ofrece agendar junta.
-- Termina con: ${rc.bye}
-- NADA después de "${rc.bye}". Sin firma, sin nombre.
+FORMATO: ${rc.hi}, → 1-3 oraciones cortas → ${rc.bye}
+NADA después de "${rc.bye}". Sin firma.
 
 REGLAS:
-- ESPAÑOL solamente. Responde SOLO al último mensaje. NO repitas lo que el cliente dijo.
-- Pide UNA cosa a la vez. Confirmaciones simples → UNA oración.
-- Cliente dice gracias/resuelto → agradece. NUNCA menciones cerrar ticket.
-- Error → pide Issue Report (BRM > Help > Issue Report). Necesitas ver algo → pide TeamViewer.
-- PROHIBIDO: "Estimado/a", "Le informo", "Quedo al pendiente", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "Procederé a cerrar", "cerrar este ticket", "mantendré este ticket"${imgRule}
+- Lee el ÚLTIMO mensaje del cliente. Responde SOLO a eso.
+- No repitas lo que dijo el cliente.
+- No inventes — si no sabes: "Lo verifico y te confirmo."
+- Una pregunta a la vez. Confirmaciones = 1 oración.
+- NUNCA menciones cerrar/mantener ticket.
+- Error → pide Issue Report (BRM > Help > Issue Report).
+- Necesitas ver → pide TeamViewer.${imgRule}
 
-FRASES BASE (adapta al contexto):
-- Remoto: "¿Me puedes compartir las credenciales de TeamViewer?" / "En un momento me conecto."
-- Info: "¿Nos podrías compartir el Issue Report de BRM?"
-- Revisión: "Revisaré lo enviado y te doy seguimiento." / "Recibido, muchas gracias."
-- Resuelto: "Me da gusto, cualquier cosa estamos para apoyarte."
-- Agendar: "¿Qué hora te parece bien para la sesión remota?"
-- SharePoint: "Por favor sube los archivos al siguiente folder de SharePoint: [link]"
-- KBR: "Confirmo de recibido. Esperamos tenerlo listo en [tiempo]."`
+PROHIBIDO: "Estimado/a", "Le informo", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "cerrar este ticket"${correctionSection}`
 
-:`You are a support agent for the KYA MES team at Koh Young Technology (BRM for AOI/SPI).
+:`KYA MES support agent, Koh Young (BRM for AOI/SPI).
 
-MAIN RULE: Read the customer's LAST message carefully. Your reply MUST directly address what they said or asked. If you don't know the answer, say "Let me check and confirm." NEVER invent information or answer something the customer didn't ask.
+TONE: Casual, direct, friendly. Like a technical colleague helping out, not a corporate robot.
 
-FORMAT:
-- Start with: ${rc.hi},
-- 2-5 sentences. 200-500 characters.
-- Technical question → concrete answer or "Let me check and confirm." Complex topic → offer to schedule a call.
-- End with: ${rc.bye}
-- NOTHING after "${rc.bye}". No signature, no name.
+FORMAT: ${rc.hi}, → 1-3 short sentences → ${rc.bye}
+NOTHING after "${rc.bye}". No signature.
 
 RULES:
-- ENGLISH only. Respond ONLY to the last message. Do NOT repeat what the customer said.
-- Ask for ONE thing at a time. Simple confirmations → ONE sentence.
-- Customer says thanks/resolved → thank briefly. NEVER mention closing ticket.
-- Error → ask for Issue Report (BRM > Help > Issue Report). Need to see something → ask for TeamViewer.
-- FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "I will proceed to close this ticket", "close this ticket", "keep this ticket", "ticket pending"${imgRule}
+- Read the customer's LAST message. Respond ONLY to that.
+- Do NOT repeat what the customer said.
+- Do NOT invent — if unsure: "Let me check and confirm."
+- One question at a time. Confirmations = 1 sentence.
+- NEVER mention closing/keeping ticket.
+- Error → ask for Issue Report (BRM > Help > Issue Report).
+- Need to see → ask for TeamViewer.${imgRule}
 
-BASE PHRASES (adapt to context):
-- Remote: "Could you please share the TeamViewer credentials?" / "I will connect shortly."
-- Info: "Could you please share the BRM Issue Report?"
-- Review: "I will review and get back to you." / "Received, thank you."
-- Resolved: "Glad to hear it's working, let us know if anything comes up."
-- Schedule: "When would be a good time for the remote session?"
-- SharePoint: "Please upload the files to the following SharePoint folder: [link]"
-- KBR: "Confirmed received. We expect to have it ready in [timeframe]."`;
+FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "close this ticket"${correctionSection}`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
 
@@ -2576,6 +2575,7 @@ async function generateAI(provider,extraCtx){
             }
         }
         window._aiReply=reply;
+        window._aiOriginal=reply;
         if(ta){ta.value=reply;ta.disabled=false;ta.placeholder=esL?'Escribe tu respuesta aquí...':'Write your reply here...';ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';}
         if(sendBtn)sendBtn.disabled=false;
         out.innerHTML='<div class="ai-info">'
@@ -2808,7 +2808,6 @@ function openCloseTicket(){
 
 function openSendModal(text,resolveOnSend){
     window._resolveOnSend=!!resolveOnSend;
-    window._sendModalOriginal=text||'';
     if(!D.cur)return;
     const rc=window._replyCtx;
     const esL=rc&&rc.lang==='es';
@@ -2910,24 +2909,24 @@ async function confirmSendReply(){
             :(esL?'Enviado correctamente':'Reply sent successfully');
         sendBtn.style.display='none';
 
-        if(window._aiReply&&rc){
+        if(rc){
             var sent=text;
-            var orig=window._sendModalOriginal||'';
             var lastCustMsgs=rc.m.filter(function(x){return x.f==='Customer'});
             var lastCustMsg=lastCustMsgs.length?cleanEmailBody(lastCustMsgs[lastCustMsgs.length-1].t):'';
             if(lastCustMsg){
-                var similarity=orig===sent?1:0;
-                if(!similarity){
-                    var words1=orig.toLowerCase().split(/\s+/);
-                    var words2=sent.toLowerCase().split(/\s+/);
-                    var common=words1.filter(function(w){return words2.indexOf(w)>=0}).length;
-                    similarity=common/Math.max(words1.length,words2.length,1);
-                }
-                if(similarity<0.85){
-                    saveAIExample(lastCustMsg,sent,rc.lang,D.cur.subject);
-                    statusEl.textContent+=(esL?' (ejemplo guardado)':' (example saved)');
+                saveAIExample(lastCustMsg,sent,rc.lang,D.cur.subject);
+            }
+            if(window._aiOriginal&&window._aiOriginal!==sent){
+                var w1=window._aiOriginal.toLowerCase().split(/\s+/);
+                var w2=sent.toLowerCase().split(/\s+/);
+                var cm=w1.filter(function(w){return w2.indexOf(w)>=0}).length;
+                var sim=cm/Math.max(w1.length,w2.length,1);
+                if(sim<0.85){
+                    saveAICorrection(window._aiOriginal,sent,rc.lang);
+                    statusEl.textContent+=(esL?' (corrección guardada)':' (correction saved)');
                 }
             }
+            window._aiOriginal=null;
         }
 
         try{var r6=JSON.parse(localStorage.getItem('fd_resp6')||'{}');r6[D.cur.id]=true;localStorage.setItem('fd_resp6',JSON.stringify(r6));_statsNoResp.delete(D.cur.id);if(_statsCache.resp6)_statsCache.resp6[D.cur.id]=true}catch(e){}
