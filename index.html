@@ -1015,6 +1015,16 @@ async function fetchByStatus(st){
 async function checkLastReply(tid){
     var batch=await get('tickets/'+tid+'/conversations?per_page=100');
     if(!batch||!batch.length)return true;
+    if(batch.length>=100){
+        var page=2;
+        while(true){
+            var more=await get('tickets/'+tid+'/conversations?per_page=100&page='+page);
+            if(!more||!more.length)break;
+            batch=batch.concat(more);
+            if(more.length<100)break;
+            page++;
+        }
+    }
     for(var i=batch.length-1;i>=0;i--){if(!batch[i].private)return batch[i].incoming!==false}
     return true;
 }
