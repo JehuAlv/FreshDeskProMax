@@ -2448,7 +2448,9 @@ REGLAS:
 - Una pregunta/acción a la vez.
 - Si necesitas ver → pide TeamViewer o VNC.
 - Error nuevo → pide Issue Report (BRM > Help > Issue Report).
-- NUNCA menciones cerrar/mantener ticket.${imgRule}
+- NUNCA menciones cerrar/mantener ticket.
+- NUNCA cites el subject del ticket ni el número de ticket en tu respuesta.
+- NO ofrezcas TeamViewer/remoto a menos que sea necesario. Si el cliente pide algo específico, responde a ESO.${imgRule}
 
 PROHIBIDO: "Estimado/a", "Le informo", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "no dudes en", "cerrar este ticket", "Quedo al pendiente de sus comentarios", "Si necesitas más apoyo", "cualquier duda"${correctionSection}`
 
@@ -2478,7 +2480,9 @@ RULES:
 - One question/action at a time.
 - Need to see → ask for TeamViewer.
 - New error → ask for Issue Report (BRM > Help > Issue Report).
-- NEVER mention closing/keeping ticket.${imgRule}
+- NEVER mention closing/keeping ticket.
+- NEVER quote the ticket subject or ticket number in your reply.
+- Do NOT offer TeamViewer/remote unless needed. If the customer asks for something specific, respond to THAT.${imgRule}
 
 FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "do not hesitate", "Thank you for reaching out", "close this ticket", "I will proceed to close", "If you need further assistance", "any questions"${correctionSection}`;
 
@@ -2514,7 +2518,7 @@ FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate",
     var isRegenerate=extraCtx&&extraCtx.length>0&&window._aiReply;
     if(!isRegenerate){
         usrParts.push('');
-        usrParts.push('=== TICKET CONTEXT ===');
+        usrParts.push('=== TICKET CONTEXT (for your understanding only — do NOT quote ticket subject or number in your reply) ===');
         usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
         usrParts.push('Customer: '+rc.firstName);
         if(rc.ctx.mainIssue)usrParts.push('Issue: '+rc.ctx.mainIssue);
