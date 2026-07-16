@@ -2385,7 +2385,7 @@ function aiPrompt(rc,extraCtx,spLink){
         const ct=lastCust?cleanEmailBody(lastCust.t).toLowerCase():'';
         if(ct.match(/ya.*reuni[oó]n|en la reuni[oó]n|ya.*conectad|ready.*connect|in the meeting|joined.*meeting|ya.*sesión|in the session|ya.*call|on the call|listo para conect|ready for.*session|estoy.*reuni[oó]n|estoy.*sesión|ya.*listo.*conect|me encuentro.*reuni[oó]n|estoy en la.*sala|i.?m in the.*room|waiting.*you|esperando/i))
             action='Customer is WAITING in meeting/session. Reply in ONE sentence MAX: "En un momento me conecto." / "Connecting now." Do NOT ask questions.';
-        else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good|no more issue|sin novedad|ya qued[oó]/i))
+        else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good|no more issue|sin novedad|ya qued[oó]/i)&&!ct.match(/pendiente|soporte|evaluar|support|help|issue|problem|error|necesit|need|please|por favor|falta|missing|waiting|esperando|also|también|además|asi como|así como/i))
             action='Customer says things are working/resolved. Write a warm, personalized response (3-4 sentences). Reference what they specifically did or confirmed (e.g. "the new version", "the update", "the configuration change"). Tell them you are glad it worked. Offer your continued support if anything comes up. Do NOT mention closing, pending, or managing the ticket status. Do NOT just say "glad to hear" and nothing else — add substance.';
         else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña|anydesk|\d{9,}/i))
             action='Customer shared TV credentials. Say: "Recibido, enseguida nos conectamos." / "Received, connecting now." ONE sentence.';
@@ -2450,7 +2450,7 @@ REGLAS:
 - Error nuevo → pide Issue Report (BRM > Help > Issue Report).
 - NUNCA menciones cerrar/mantener ticket.${imgRule}
 
-PROHIBIDO: "Estimado/a", "Le informo", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "cerrar este ticket", "Quedo al pendiente de sus comentarios"${correctionSection}`
+PROHIBIDO: "Estimado/a", "Le informo", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "no dudes en", "cerrar este ticket", "Quedo al pendiente de sus comentarios", "Si necesitas más apoyo", "cualquier duda"${correctionSection}`
 
 :`KYA MES support agent, Koh Young (BRM for AOI/SPI).
 
@@ -2480,7 +2480,7 @@ RULES:
 - New error → ask for Issue Report (BRM > Help > Issue Report).
 - NEVER mention closing/keeping ticket.${imgRule}
 
-FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "close this ticket", "I will proceed to close"${correctionSection}`;
+FORBIDDEN: "Dear", "I hope this email finds you well", "Please do not hesitate", "do not hesitate", "Thank you for reaching out", "close this ticket", "I will proceed to close", "If you need further assistance", "any questions"${correctionSection}`;
 
     const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
 
