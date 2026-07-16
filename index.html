@@ -2985,6 +2985,7 @@ async function confirmSendReply(){
             setTimeout(()=>{closeSendModal();D.cur=null;document.getElementById('content').innerHTML=''},1200);
         }else{
             D.lr[D.cur.id]=false;
+            try{var c4=JSON.parse(localStorage.getItem('fd_cache4')||'{}');if(c4[D.cur.id]){c4[D.cur.id].lr=false;c4[D.cur.id].u=null;localStorage.setItem('fd_cache4',JSON.stringify(c4))}}catch(e){}
             var wasNew=D.newTks.some(t=>t.id===D.cur.id);
             if(wasNew){
                 var tk=D.newTks.find(t=>t.id===D.cur.id);
