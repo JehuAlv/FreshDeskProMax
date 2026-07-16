@@ -35,7 +35,7 @@ nav input{
     font:13px/30px var(--f);color:var(--black);outline:none;transition:all .2s;
 }
 nav input:focus{background:var(--white);box-shadow:0 0 0 3px rgba(0,122,255,0.25)}
-nav input::placeholder{color:var(--g400)}
+nav input::placeholder{color:var(--g300);opacity:.6}
 nav #inp-key{width:150px}
 nav #inp-domain{width:180px}
 nav #inp-search{width:200px;margin-left:auto}
@@ -449,7 +449,7 @@ nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
     <button class="nbtn ghost" onclick="toggleKey()">Show</button>
     <input type="text" id="inp-domain" value="kyexpert.freshdesk.com">
     <button class="nbtn primary" onclick="connect()">Connect</button>
-    <input type="text" id="inp-search" placeholder="#ID, name, keyword">
+    <input type="text" id="inp-search" placeholder="#ID, name, keyword, customer">
     <button class="nbtn primary" onclick="doSearch()">Search</button>
     <span class="conn-status" id="conn-status"></span>
     <span class="ticket-stats" id="ticket-stats" style="display:none" onclick="renderDashboard()" title="Click to open Dashboard"></span>
@@ -2728,13 +2728,20 @@ Instead of "keep this ticket" say: "I will keep you posted"${correctionSection}`
 
     let usrParts=[];
 
+    var currentText=document.getElementById('custom-reply');
+    var liveText=currentText?currentText.value.trim():'';
     if(extraCtx&&extraCtx.length>0){
-        if(window._aiReply){
-            usrParts.push('=== YOUR TASK ===');
-            usrParts.push('MODIFY this draft following the instruction below.');
-            usrParts.push('\nYOUR PREVIOUS DRAFT:\n'+window._aiReply);
-            usrParts.push('\nINSTRUCTION: '+extraCtx);
-            usrParts.push('Keep the same format (greeting + body + sign-off). Only change what the instruction says.');
+        if(liveText||window._aiReply){
+            var draft=liveText||window._aiReply;
+            var draftLines=draft.split('\n');
+            var draftGreeting=draftLines[0]||rc.hi+',';
+            var draftBye=rc.bye;
+            usrParts.push('=== EDIT TASK ===');
+            usrParts.push('Rewrite this email applying the instruction below.');
+            usrParts.push('⛔ RULES: Start with "'+draftGreeting+'". End with "'+draftBye+'". NOTHING after "'+draftBye+'". No name, no signature.');
+            usrParts.push('\nEMAIL TO EDIT:\n'+draft);
+            usrParts.push('\nCHANGE: '+extraCtx);
+            usrParts.push('\nOutput the complete rewritten email only.');
         }else{
             usrParts.push('=== YOUR TASK ===');
             usrParts.push('INSTRUCTION FROM AGENT: '+extraCtx);
@@ -2753,7 +2760,7 @@ Instead of "keep this ticket" say: "I will keep you posted"${correctionSection}`
         usrParts.push('\nCUSTOMER\'S LAST MESSAGE (you MUST respond to THIS):\n'+lastCustText);
     }
 
-    var isRegenerate=extraCtx&&extraCtx.length>0&&window._aiReply;
+    var isRegenerate=extraCtx&&extraCtx.length>0&&(liveText||window._aiReply);
     if(!isRegenerate){
         usrParts.push('');
         usrParts.push('=== TICKET CONTEXT (for your understanding only — do NOT quote ticket subject or number in your reply) ===');
