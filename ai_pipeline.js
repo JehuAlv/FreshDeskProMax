@@ -537,6 +537,8 @@ var AIPipeline = (function() {
         t = t.replace(/([a-z])([A-Z][a-z])/g, '$1 $2');
         t = t.replace(/\bHello([a-z])/gi, function(m, c) { return 'Hello ' + c; });
         t = t.replace(/\bBest([a-z])/gi, function(m, c) { return 'Best ' + c; });
+        t = t.replace(/\bSaludos(?=cordiales)/gi, 'Saludos ');
+        t = t.replace(/\bBest(?=regards)/gi, 'Best ');
 
         t = t.replace(/[一-鿿　-〿＀-￯぀-ゟ゠-ヿ]+[^\n]*/g, '');
         t = t.replace(/```[\s\S]*?```/g, '');
