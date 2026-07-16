@@ -142,8 +142,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header('Access-Control-Allow-Origin', '*')
                     self.end_headers()
                     try:
-                        for line in resp:
-                            self.wfile.write(line)
+                        while True:
+                            chunk = resp.read1(8192)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
                             self.wfile.flush()
                     except (BrokenPipeError, ConnectionResetError):
                         pass
