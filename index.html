@@ -2253,7 +2253,7 @@ function extractContext(allLow,m,lastCust,lastAgent){
     const isTechnical=!!allLow.match(/error|crash|config|install|brm|kbr|socket|database|inspect|calibrat|export|barcode|defect|spi|aoi|instalación|configuración|calibración|máquina/i);
     const isBRM=!!allLow.match(/brm|kbr|business.rule|script|customer.?property/i);
     const isInspection=!!allLow.match(/inspect|defect|barcode|pcb|spi|aoi|result|inspección|defecto|resultado/i);
-    const isQuote=!!allLow.match(/quote|quotat|price|cost|purchase|po\b|cotizac|precio|costo|compra/i);
+    const isQuote=!!allLow.match(/quote|quotat|price|cost|purchase|po\b|cotizac|precio|costo|compra|part.?number|número de parte|spare.?part|refacción|refacciones/i);
     const isScheduling=!!allLow.match(/schedul|meeting|call|appointment|availab|agendar|reunión|cita|disponibilidad|horario|junta/i);
     const hadRemoteSession=!!allLow.match(/teamviewer|remote.session|anydesk|tv.id|connected.remote|during.*(session|remote)|sesión remota|nos conectamos|conecté remotamente/i);
     const hasScreenshot=!!allLow.match(/screenshot|screen.?shot|image|picture|attached.*png|attached.*jpg|captura|imagen|adjunt.*png|adjunt.*jpg/i);
@@ -2385,10 +2385,12 @@ function aiPrompt(rc,extraCtx,spLink){
         const ct=lastCust?cleanEmailBody(lastCust.t).toLowerCase():'';
         if(ct.match(/ya.*reuni[oó]n|en la reuni[oó]n|ya.*conectad|ready.*connect|in the meeting|joined.*meeting|ya.*sesión|in the session|ya.*call|on the call|listo para conect|ready for.*session|estoy.*reuni[oó]n|estoy.*sesión|ya.*listo.*conect|me encuentro.*reuni[oó]n|estoy en la.*sala|i.?m in the.*room|waiting.*you|esperando/i))
             action='Customer is WAITING in meeting/session. Reply in ONE sentence MAX: "En un momento me conecto." / "Connecting now." Do NOT ask questions.';
-        else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good|no more issue|sin novedad|ya qued[oó]/i)&&!ct.match(/pendiente|soporte|evaluar|support|help|issue|problem|error|necesit|need|please|por favor|falta|missing|waiting|esperando|also|también|además|asi como|así como/i))
+        else if(ct.match(/gracias|thanks|resolved|solved|ya funciona|it works|fixed|working now|todo.*bien|everything.*good|no more issue|sin novedad|ya qued[oó]/i)&&!ct.match(/pendiente|soporte|evaluar|support|help|necesit|need|please|por favor|falta|missing|waiting|esperando|also|también|además|asi como|así como/i)&&!(ct.match(/issue|problem|error|problema/i)&&!ct.match(/fixed.*issue|resolved.*issue|solved.*issue|no more.*issue|issue.*fixed|issue.*resolved|issue.*solved|arregl.*problema|resolv.*problema|problema.*arregl|problema.*resolv/i)))
             action='Customer says things are working/resolved. Write a warm, personalized response (3-4 sentences). Reference what they specifically did or confirmed (e.g. "the new version", "the update", "the configuration change"). Tell them you are glad it worked. Offer your continued support if anything comes up. Do NOT mention closing, pending, or managing the ticket status. Do NOT just say "glad to hear" and nothing else — add substance.';
-        else if(ct.match(/teamviewer|tv.*id|id.*\d{5,}|password|contraseña|anydesk|\d{9,}/i))
+        else if(ct.match(/teamviewer|anydesk/i)&&ct.match(/id.*\d{3,}|password|contraseña|\d{3}\s*\d{3}\s*\d{3}/i))
             action='Customer shared TV credentials. Keep greeting and sign-off. Body is ONE sentence: "Recibido, enseguida me conecto." / "Received, connecting now."';
+        else if(ct.match(/sin problema|works for me|i.?m available|estoy disponible|let.?s do|hagámoslo|confirmado|nos vemos|see you|sounds good.*time|está bien.*hora|que tal a las|how about at|reschedul|reagend/i)&&ct.match(/\d{1,2}[:.]\d{2}\s*(am|pm|hrs)?|time|hora|am\b|pm\b|morning|afternoon|mañana|descanso|turno|session|sesión|meeting|reunión|call/i))
+            action='Customer is confirming or proposing a schedule/time. Confirm the time: "Perfecto, nos conectamos a esa hora." / "Sounds good, I will be available at that time."';
         else if(ct.match(/should i|shall i|do you want me|debo|quieres que|le hago|go ahead|\?.*apply|\?.*install|\?.*proceed|\?.*continue/i))
             action='Customer is asking whether to proceed with something. Answer their question directly (yes/no + brief reason). If they also shared files/images, acknowledge those too.';
         else if(ct.match(/question|pregunta|how do|cómo puedo|how can|can you|could you|podrías|puedes|es posible|is it possible|what is|qué es|cuál es|where|dónde/i))
@@ -2409,6 +2411,8 @@ function aiPrompt(rc,extraCtx,spLink){
             action='Status request. Be honest and direct. If reviewing, say so. If waiting on something, say what.';
         else if(ct.match(/send.*meeting|envía.*invite|inv[ií]tame|send.*invite|calendar|teams.*link|zoom.*link/i))
             action='Customer asks for meeting invite. Confirm: "Claro, envío la invitación a tu correo." / "Sure, I will send the invite to your email."';
+        else if(ct.match(/resend|re-send|send.*again|reenviar|reenvía|enviar.*otra.*vez|volver.*enviar|timed.*out|expired|expiró|expirado|caducó|caducado/i))
+            action='Customer asks you to resend files/links that expired or timed out. Acknowledge and say you will resend them shortly: "Sure, I will resend the files shortly." / "Claro, te los reenvío en un momento."';
         else action='Read the customer message carefully. Identify what they are telling you or asking, then respond to THAT specific thing. Do NOT say "connecting now" unless they asked for a remote session. Do NOT default to asking for Issue Report unless they report an error.';
     }else{
         action=rc.ctx.pendingAction?'Follow up on: '+rc.ctx.pendingAction
@@ -2426,7 +2430,7 @@ function aiPrompt(rc,extraCtx,spLink){
 ?`Soporte KYA MES, Koh Young. Tuteo, directo, casual.
 
 FORMATO: ${rc.hi}, → 1-3 oraciones → ${rc.bye}
-Nada después de "${rc.bye}".
+⛔ NADA después de "${rc.bye}". No pongas nombre, firma, ni título después.
 
 EJEMPLOS de respuesta:
 - Error: "¿Nos podrías compartir el Issue Report de BRM? (Help > Issue Report)"
@@ -2436,12 +2440,14 @@ EJEMPLOS de respuesta:
 - Remoto: "¿Me compartes las credenciales de TeamViewer?"
 - Resuelto: "Me da gusto, cualquier cosa estamos para apoyarte."
 - Seguimiento: "¿Pudieron verificar lo anterior?"
+- Confirma hora: "Perfecto, nos conectamos a esa hora."
 
 REGLAS:
 - Responde SOLO al último mensaje.
-- No repitas lo que dijo el cliente.
+- No repitas lo que dijo el cliente — usa tus propias palabras.
 - No inventes info. No cites el subject del ticket.
-- No ofrezcas TeamViewer si no es necesario.${imgRule}
+- No ofrezcas TeamViewer si no es necesario.
+- NO incluyas firma, nombre ni título al final.${imgRule}
 
 ⛔ PROHIBIDO — NUNCA escribas estas frases:
 - "no dudes en" (ni contactarnos, ni contactarme, ni escribirnos)
@@ -2455,7 +2461,7 @@ En vez de "no dudes en contactarnos" di: "cualquier cosa estamos para apoyarte"$
 :`KYA MES support, Koh Young. Direct, casual, technical.
 
 FORMAT: ${rc.hi}, → 1-3 sentences → ${rc.bye}
-Nothing after "${rc.bye}".
+⛔ NOTHING after "${rc.bye}". No name, signature, or title after it.
 
 EXAMPLES:
 - Error: "Could you please share the BRM Issue Report? (Help > Issue Report)"
@@ -2465,12 +2471,14 @@ EXAMPLES:
 - Remote: "Please give me TeamViewer session."
 - Resolved: "Great to hear! Let me know if anything comes up."
 - Follow-up: "Were you able to check on this?"
+- Confirms time: "Sounds good, I will be available at that time."
 
 RULES:
 - Respond ONLY to the last message.
-- Do NOT repeat what the customer said.
+- Do NOT repeat what the customer said — use your own words.
 - Do NOT invent info. Do NOT quote ticket subject.
-- Do NOT offer TeamViewer unless needed.${imgRule}
+- Do NOT offer TeamViewer unless needed.
+- Do NOT add a name, signature, or title after sign-off.${imgRule}
 
 ⛔ FORBIDDEN — NEVER write these phrases:
 - "do not hesitate" (nor "don't hesitate")
