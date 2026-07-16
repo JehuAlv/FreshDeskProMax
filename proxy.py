@@ -250,7 +250,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         req = urllib.request.Request(url, method=method)
         req.add_header('Authorization', 'Basic ' + auth)
-        req.add_header('Content-Type', 'application/json')
+        content_type = self.headers.get('Content-Type', 'application/json')
+        req.add_header('Content-Type', content_type)
 
         if method in ('POST', 'PUT'):
             length = int(self.headers.get('Content-Length', 0))
