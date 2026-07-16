@@ -475,14 +475,15 @@ nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
 
     <!-- RIGHT: detail (static structure = scroll works) -->
     <div class="right-panel">
-        <div id="hdr"><div class="empty-msg" style="height:100%">Select a ticket</div></div>
+        <div id="hdr"></div>
         <div id="tab-bar"></div>
         <div id="scroll-area">
-            <div id="content"></div>
+            <div id="content"><div class="empty-msg" style="height:60vh">Select a ticket</div></div>
         </div>
     </div>
 </div>
 
+<script src="ai_pipeline.js"></script>
 <script>
 const PC={1:'var(--green)',2:'var(--orange)',3:'var(--red)',4:'var(--red)'};
 const PN={1:'Low',2:'Medium',3:'High',4:'Urgent'};
@@ -493,71 +494,6 @@ const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed',8:'
 var _praw=JSON.parse(localStorage.getItem('fd_pending')||'[]');
 var _pend=new Set(Array.isArray(_praw)?_praw:Object.keys(_praw).map(Number));
 
-var _aiSeedExamples=[
-{c:"error crash not working problem",a:"I would like to check the issue remotely. Please let me know what time works best for you.",l:"en"},
-{c:"error falla problema no funciona",a:"Comprendo, ¿me puedes dar acceso remoto para revisarlo?",l:"es"},
-{c:"here are the logs attached dump files",a:"Thank you! I will review and keep you posted.",l:"en"},
-{c:"adjunto los logs te comparto los registros",a:"Recibido, lo revisaré y te doy seguimiento.",l:"es"},
-{c:"thanks resolved working fixed no more issues",a:"Great to hear! Let me know if you need any further assistance.",l:"en"},
-{c:"gracias ya funciona resuelto todo bien",a:"Me da gusto, cualquier cosa estamos para apoyarte.",l:"es"},
-{c:"teamviewer remote session tv id password credentials",a:"I am available now. Please give me the TeamViewer session.",l:"en"},
-{c:"teamviewer acceso remoto credenciales sesion",a:"Claro, ¿me compartes las credenciales de TeamViewer?",l:"es"},
-{c:"i will check test verify get back health check tomorrow",a:"Sounds good, take your time. I will be here if you need anything.",l:"en"},
-{c:"voy a verificar revisar probar mañana te confirmo",a:"Perfecto, quedo al pendiente de tu confirmación.",l:"es"},
-{c:"done installed applied loaded listo ya lo hice",a:"Is everything working properly now?",l:"en"},
-{c:"listo ya lo instalé ya lo apliqué ya cargué",a:"¿Todo funcionando correctamente?",l:"es"},
-{c:"how to can you is it possible question",a:"Please refer to the following steps:",l:"en"},
-{c:"como puedo es posible pregunta",a:"Claro, los pasos serían los siguientes:",l:"es"},
-{c:"still same problem persists again otra vez",a:"Could you share remote access so I can take a look?",l:"en"},
-{c:"sigue igual mismo problema persiste otra vez",a:"Comprendo, ¿me puedes dar acceso remoto para revisarlo directamente?",l:"es"},
-{c:"available now schedule time when hora disponible",a:"Are you available now? If so, please provide TeamViewer session.",l:"en"},
-{c:"disponible hora cuando sesion remota",a:"¿Qué hora te parece bien para la sesión remota?",l:"es"},
-{c:"quotation cotizacion quote precio",a:"Adjunto cotización. Una vez recibida, el tiempo de desarrollo es de aproximadamente 4 semanas.",l:"es"}
-];
-var _aiExamples=JSON.parse(localStorage.getItem('fd_ai_examples')||'[]');
-var _aiCorrections=JSON.parse(localStorage.getItem('fd_ai_corrections')||'[]');
-function saveAIExample(customerMsg,agentReply,lang,subject){
-    if(!customerMsg||!agentReply)return;
-    _aiExamples.push({c:customerMsg.substring(0,500),a:agentReply.substring(0,500),l:lang,s:(subject||'').substring(0,80),d:Date.now()});
-    if(_aiExamples.length>200)_aiExamples=_aiExamples.slice(-200);
-    try{localStorage.setItem('fd_ai_examples',JSON.stringify(_aiExamples))}catch(e){}
-}
-function saveAICorrection(aiDraft,userEdit,lang){
-    if(!aiDraft||!userEdit||aiDraft===userEdit)return;
-    _aiCorrections.push({ai:aiDraft.substring(0,400),user:userEdit.substring(0,400),l:lang,d:Date.now()});
-    if(_aiCorrections.length>50)_aiCorrections=_aiCorrections.slice(-50);
-    try{localStorage.setItem('fd_ai_corrections',JSON.stringify(_aiCorrections))}catch(e){}
-}
-function getCorrectionHints(lang,n){
-    var recent=_aiCorrections.filter(function(x){return x.l===lang}).slice(-n);
-    if(!recent.length)return '';
-    var hints=recent.map(function(c){return '\n- YOU wrote: "'+c.ai.substring(0,150)+'..."\n  USER changed to: "'+c.user.substring(0,150)+'..."'});
-    return (lang==='es'
-        ?'\n\nCORRECCIONES PREVIAS (el usuario editó tus respuestas — aprende de esto):'
-        :'\n\nPREVIOUS CORRECTIONS (user edited your replies — learn from this):')+hints.join('');
-}
-var _aiStopWords=new Set(['the','a','an','is','are','was','were','be','been','to','of','in','for','on','with','at','by','that','this','it','and','or','but','not','no','from','as','do','did','has','have','had','will','can','could','would','should','i','you','we','they','he','she','me','my','your','our','el','la','los','las','un','una','de','del','en','por','para','con','que','es','son','no','se','lo','al','como','su','nos','le','te','mi','tu','ya','si','más','muy']);
-function getAIExamples(lang,n,customerMsg){
-    var all=_aiSeedExamples.concat(_aiExamples);
-    var matching=all.filter(function(x){return x.l===lang});
-    if(!customerMsg||!matching.length)return matching.slice(-n);
-    var stop=_aiStopWords;
-    var words=customerMsg.toLowerCase().replace(/[^a-záéíóúñü\s]/g,'').split(/\s+/).filter(function(w){return w.length>2&&!stop.has(w)});
-    if(!words.length)return matching.slice(-n);
-    var wordSet=new Set(words);
-    var scored=matching.map(function(ex){
-        var exWords=ex.c.toLowerCase().replace(/[^a-záéíóúñü\s]/g,'').split(/\s+/).filter(function(w){return w.length>2&&!stop.has(w)});
-        var hits=exWords.filter(function(w){return wordSet.has(w)}).length;
-        var score=hits/Math.max(wordSet.size,1);
-        return{ex:ex,score:score};
-    });
-    scored.sort(function(a,b){return b.score-a.score});
-    var result=[];
-    for(var i=0;i<scored.length&&result.length<n;i++){
-        if(scored[i].score>0.1)result.push(scored[i].ex);
-    }
-    return result;
-}
 let D={key:'',dom:'',tks:[],cur:null,cvs:[],fl:2,pg:1,pgs:1,aid:null,anm:'',sig:'',allOpen:[],lr:{},newTks:[],pending:_pend};
 
 document.getElementById('inp-search').onkeydown=e=>{if(e.key==='Enter')doSearch()};
@@ -613,6 +549,7 @@ async function connect(){
         if(Object.keys(D._cacheNew).length)D._earlyNewIds=new Set(Object.keys(D._cacheNew).map(Number));
         await Promise.all([loadNewTickets(),load()]);
         loadStats();
+        AIPipeline.loadIndex();
         if(!D._newPoll)D._newPoll=setInterval(()=>{refresh()},300000);
     }catch(e){
         if(e.message.includes('404')){try{await get('tickets?per_page=1');localStorage.setItem('fd_apikey',D.key);st('Connected',1);load()}catch(e2){st('Failed')}}
@@ -1010,10 +947,6 @@ function renderDashboard(){
     animateBars();
 }
 
-function kpi(val,label,accent,oc){
-    var click=oc?' onclick="'+oc+'"':'';
-    return '<div class="dash-card '+(accent||'')+'"'+click+'><div class="dc-val">'+val+'</div><div class="dc-lbl">'+label+'</div></div>';
-}
 function barChart(data,color){
     var max=Math.max.apply(null,data.map(function(d){return d.v}))||1;
     var h='<div class="dash-chart">';
@@ -1637,13 +1570,6 @@ function cleanEmailBody(text){
         .replace(/(?:tel|phone|fax|cell|móvil|ext)[\s.:]*[\d\s\-+().]+/gi,'')
         .replace(/\s{2,}/g,' ')
         .trim();
-}
-
-function extractBody(text){
-    let t=text;
-    t=t.replace(/^(Hola|Hi|Hello|Dear|Buenos?\s*d[ií]as?|Buen d[ií]a|Estimado\/?)[\s,\w]*[,.:]\s*/i,'');
-    t=t.replace(/(Saludos?\s*(cordiales)?|Best regards|Kind regards|Regards|Quedo al pendiente|Quedamos al pendiente|Quedo atento|Atentamente|Cordialmente)[,.\s]*$/i,'');
-    return t.trim();
 }
 
 function stripSignature(text){
@@ -2541,283 +2467,42 @@ function extractContext(allLow,m,lastCust,lastAgent){
 function openFd(){if(D.dom&&D.cur&&D.cur.id)window.open('https://'+D.dom+'/a/tickets/'+D.cur.id,'_blank')}
 function cpText(txt,b){openFd();var orig=b.innerHTML;navigator.clipboard.writeText(txt).then(()=>{b.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Copied!';b.classList.add('did');setTimeout(()=>{b.innerHTML=orig;b.classList.remove('did')},1500)})}
 
-function aiPrompt(rc,extraCtx,spLink){
-    const recent=rc.m.slice(-6);
-    const thread=recent.map(x=>x.f+': '+cleanEmailBody(x.t)).join('\n\n---\n\n');
-
-    const kbHits=matchKB(rc.issueText,rc.ctx.triedSolutions||new Set());
-    let kbSection=kbHits.length?kbHits.map(k=>{
-        let txt=k[rc.lang];
-        if(txt.includes('{SP_LINK}')){
-            if(spLink)txt=txt.replace(/\{SP_LINK\}/g,spLink);
-            else txt=txt.replace(/\n?\{SP_LINK\}\n?/g,'');
-        }
-        return'- '+k.id+': '+txt;
-    }).join('\n'):'';
-
-    const sugSection=rc.suggestions.slice(0,3).map(s=>'- ['+s.nm+']: '+s.body.substring(0,200)).join('\n');
-
-    const triedList=rc.ctx.triedSolutions&&rc.ctx.triedSolutions.size>0?Array.from(rc.ctx.triedSolutions).join(', '):'';
-
-    const esL=rc.lang==='es';
-
-    const lastMsg=rc.m.length?rc.m[rc.m.length-1]:null;
-    const lastCustMsgs=rc.m.filter(x=>x.f==='Customer');
-    const lastCust=lastCustMsgs.length?lastCustMsgs[lastCustMsgs.length-1]:null;
-    const lastAgentMsgs=rc.m.filter(x=>x.f==='Agent');
-    const lastAgent=lastAgentMsgs.length?lastAgentMsgs[lastAgentMsgs.length-1]:null;
-
-    const isWaiting=D.fl===3;
-    const hasImages=rc.ctx.customerSentImages;
-    const asked=rc.ctx.agentAskedFor;
-    const provided=rc.ctx.customerProvided;
-    let action='';
-    if(isWaiting&&lastAgent){
-        const agentText=cleanEmailBody(lastAgent.t).toLowerCase();
-        if(agentText.match(/teamviewer|remote|session|sesión|conectar/i))
-            action='Follow up: ask if they are available for the remote session you proposed. Be brief: "¿Pudieron verificar lo anterior?" / "Were you able to check on this?"';
-        else if(agentText.match(/issue.*report|log|registro|reporte/i))
-            action='Follow up: ask if they were able to gather the logs/issue report you requested. Keep it short.';
-        else if(agentText.match(/kbr|apply|install|aplicar|instalar/i))
-            action='Follow up: ask if they applied the KBR and if everything is working correctly.';
-        else if(agentText.match(/screenshot|captura|imagen/i))
-            action='Follow up: ask if they were able to get the screenshots you requested.';
-        else
-            action='Follow up briefly: "Estoy dándole seguimiento a este ticket, ¿aún requieren soporte?" / "Following up, do you still need assistance?"';
-    }else if(!lastAgent){
-        if(rc.ctx.isUrgent)action='URGENT (line down). Ask for TeamViewer credentials NOW: "¿Me puedes compartir las credenciales de TeamViewer? Lo revisamos de inmediato." / "Could you share the TeamViewer credentials? I will look into this right away."';
-        else if(rc.ctx.isError&&hasImages)action='Customer reported error with images you CANNOT see. Acknowledge, ask for Issue Report and serial number. Offer remote session.';
-        else if(rc.ctx.isError)action='Customer reported an error. Ask for: 1) Issue Report (BRM > Help > Issue Report), 2) serial number if not provided. Keep it direct.';
-        else if(rc.ctx.isQuote)action='Acknowledge receipt. Say you will review requirements and share timeline: "Confirmo de recibido. Revisaré los requerimientos."';
-        else if(hasImages)action='Customer sent images you CANNOT see. Acknowledge receipt. Ask what the images show or offer remote session to see directly.';
-        else action='Respond to the customer request. If unclear, ask ONE specific question (serial number, OR remote access, OR what behavior they expect). Do NOT ask for Issue Report unless they report an actual error.';
-    }else if(lastMsg&&lastMsg.f==='Customer'){
-        const ct=lastCust?cleanEmailBody(lastCust.t).toLowerCase():'';
-        if(ct.match(/ya.*reuni[oó]n|en la reuni[oó]n|ya.*conectad|ready.*connect|in the meeting|joined.*meeting|ya.*sesión|in the session|ya.*call|on the call|listo para conect|ready for.*session|estoy.*reuni[oó]n|estoy.*sesión|ya.*listo.*conect|me encuentro.*reuni[oó]n|estoy en la.*sala|i.?m in the.*room|waiting.*you|esperando/i))
-            action='Customer is WAITING in meeting/session. Reply in ONE sentence MAX: "En un momento me conecto." / "Connecting now." Do NOT ask questions.';
-        else if(ct.match(/gracias|thanks|resolved|solved|ya.*funciona|it works|fixed|working now|todo.*bien|everything.*good|no more issue|sin novedad|ya qued[oó]/i)&&!ct.match(/pendiente|soporte|evaluar|support|help|necesit|need|please|por favor|falta|missing|waiting|esperando|also|también|además|asi como|así como|update|status|kindly|send|share|provide|quote|cotización|enviar|compartir|when|cuándo|follow|tracking|shipping|envío|schedule|agendar|manual|document|could you|can you|podrías|puedes/i)&&!(ct.match(/issue|problem|error|problema/i)&&!ct.match(/fixed.*issue|resolved.*issue|solved.*issue|no more.*issue|issue.*fixed|issue.*resolved|issue.*solved|arregl.*problema|resolv.*problema|problema.*arregl|problema.*resolv/i)))
-            action='Customer says things are working/resolved. Write a warm, personalized response (3-4 sentences). Reference what they specifically did or confirmed (e.g. "the new version", "the update", "the configuration change"). Tell them you are glad it worked. Offer your continued support if anything comes up. Do NOT mention closing, pending, or managing the ticket status. Do NOT just say "glad to hear" and nothing else — add substance.';
-        else if(ct.match(/teamviewer|anydesk/i)&&ct.match(/id.*\d{3,}|password|contraseña|\d{3}\s*\d{3}\s*\d{3}/i)){
-            if(ct.match(/\?|how|what|why|can you|could you|también|also|but|pero|cómo|qué/i))
-                action='Customer shared TV credentials AND asked a question. Keep greeting. First say "Recibido, enseguida me conecto." / "Received, connecting now." Then BRIEFLY address their question in 1 sentence.';
-            else
-                action='Customer shared TV credentials. Keep greeting and sign-off. Body is ONE sentence: "Recibido, enseguida me conecto." / "Received, connecting now."';
-        }
-        else if(ct.match(/sin problema|works for me|i.?m available|estoy disponible|let.?s do|hagámoslo|confirmado|nos vemos|see you|sounds good.*time|está bien.*hora|que tal a las|how about at|reschedul|reagend/i)&&ct.match(/\d{1,2}[:.]\d{2}\s*(am|pm|hrs)?|time|hora|am\b|pm\b|morning|afternoon|mañana|descanso|turno|session|sesión|meeting|reunión|call/i))
-            action='Customer is confirming or proposing a schedule/time. Confirm the time: "Perfecto, nos conectamos a esa hora." / "Sounds good, I will be available at that time."';
-        else if(ct.match(/should i|shall i|do you want me|debo|quieres que|le hago|go ahead|\?.*apply|\?.*install|\?.*proceed|\?.*continue/i))
-            action='Customer is asking whether to proceed with something. Answer their question directly (yes/no + brief reason). If they also shared files/images, acknowledge those too.';
-        else if(ct.match(/question|pregunta|how do|cómo puedo|how can|can you|could you|podrías|puedes|es posible|is it possible|what is|qué es|cuál es|where|dónde|what do i|what.*need|what.*should|qué.*necesit|qué.*debo|cuáles.*son|which.*files|qué.*archivos|para confirmar|solo.*confirmar|corresponde/i)||ct.match(/¿/))
-            action='Customer asked a question. Answer it directly. If unsure, say you will check: "Lo verifico y te confirmo." / "Let me check and confirm." If they also shared files/images, acknowledge those too.';
-        else if(provided==='logs'||provided==='screenshots'||provided==='files'||(ct.match(/adjunto|attach|here.*is|aquí|te.*(comparto|envío)|sharing|sent.*you|envié/i))||hasImages){
-            if(rc.ctx.isError||ct.match(/error|issue|problem|fail|forbidden|exception|crash|broken|not work/i))
-                action='Customer reported an error and shared images/files. Acknowledge the specific error they mentioned (quote their words). Say you will review. Offer remote session if needed. Do NOT say "connecting now" — they did NOT ask for a remote session.';
-            else
-                action='Customer shared info/files. Acknowledge and say you will review. If they mentioned something specific, address that too — do not just say "I will review".';
-        }
-        else if(ct.match(/still|sigue|todavía|again|otra vez|persiste|same|mismo|continues|continúa/i)&&!ct.match(/not occurred|hasn.t happened|no.*ocurri|no.*present|not happened|not recurring|not recurred/i))
-            action='Problem persists. Ask for remote session: "¿Me puedes compartir acceso remoto para revisarlo directamente?" / "Could you share remote credentials so I can take a look?"';
-        else if(ct.match(/i will|voy a|let me|déjame|going to.*check|going to.*test|going to.*try|going to.*verify|haré|verificaré|probaré|get back to you|te confirmo|te aviso|le aviso|tomorrow|mañana|this week|esta semana|need.*time|necesito.*tiempo|give me.*time|dame.*tiempo|health check|will.*check|will.*test|will.*try|will.*verify/i))
-            action='Customer says they will check/test/verify. Acknowledge briefly: "Sounds good, take your time." / "Perfecto, quedo al pendiente." Do NOT ask questions, do NOT offer help — just confirm you will wait for their update.';
-        else if(provided==='installed'||ct.match(/done|listo|installed|instalé|ya.*cargué|applied|apliqué|loaded|ya lo hice|already did/i))
-            action='Customer completed requested action. Ask: "¿Todo funcionando correctamente?" / "Is everything working properly now?"';
-        else if(ct.match(/status|update|avance|estado|progress|follow|novedad|cuando|how.*going|cómo va/i))
-            action='Status request. Be honest and direct. If reviewing, say so. If waiting on something, say what.';
-        else if(ct.match(/send.*meeting|envía.*invite|inv[ií]tame|send.*invite|calendar|teams.*link|zoom.*link/i))
-            action='Customer asks for meeting invite. Confirm: "Claro, envío la invitación a tu correo." / "Sure, I will send the invite to your email."';
-        else if(ct.match(/resend|re-send|send.*again|reenviar|reenvía|enviar.*otra.*vez|volver.*enviar|timed.*out|expired|expiró|expirado|caducó|caducado/i))
-            action='Customer asks you to resend files/links that expired or timed out. Acknowledge and say you will resend them shortly: "Sure, I will resend the files shortly." / "Claro, te los reenvío en un momento."';
-        else if(ct.match(/i.?m (at|here|ready)|estoy (aquí|listo|en el)|ya estoy|i am at the|i am here|i am ready/i))
-            action='Customer says they are at the machine/ready. Acknowledge briefly: "I can see the connection, let me take a look." / "Perfecto, ya lo estoy revisando."';
-        else action='Read the customer message carefully. Identify what they are telling you or asking, then respond to THAT specific thing. Do NOT say "connecting now" unless they asked for a remote session. Do NOT default to asking for Issue Report unless they report an error.';
-    }else{
-        action=rc.ctx.pendingAction?'Follow up on: '+rc.ctx.pendingAction
-            :'Ask briefly if the issue is resolved: "¿El problema persiste?" / "Is the issue still occurring?"';
-    }
-
-    const imgRule=hasImages?(esL
-        ?'\n- IMPORTANTE: El cliente envió imágenes/capturas que NO puedes ver. NUNCA finjas que las ves. Reconoce que las recibiste y pide descripción en texto si necesitas más contexto, o ofrece sesión remota para verlo directamente.'
-        :'\n- IMPORTANT: The customer sent images/screenshots you CANNOT see. NEVER pretend you can see them. Acknowledge receipt and ask for a text description if you need more context, or offer a remote session to see it directly.')
-        :'';
-
-    const correctionSection=getCorrectionHints(esL?'es':'en',3);
-
-    const sys=esL
-?`Soporte KYA MES, Koh Young. Tuteo, directo, casual.
-⛔ Lee TODO el thread antes de responder. Responde al ÚLTIMO mensaje del cliente en contexto con la conversación.
-
-FORMATO: ${rc.hi}, → 1-3 oraciones → ${rc.bye}
-⛔ NADA después de "${rc.bye}". No pongas nombre, firma, ni título después.
-
-EJEMPLOS de respuesta:
-- Error: "¿Nos podrías compartir el Issue Report de BRM? (Help > Issue Report)"
-- Logs recibidos: "Recibido, lo revisaré y te doy seguimiento."
-- Confirma acción: "¿Todo funcionando correctamente?"
-- No sabes: "Lo verifico y te confirmo."
-- Remoto: "¿Me compartes las credenciales de TeamViewer?"
-- Resuelto: "Me da gusto, cualquier cosa estamos para apoyarte."
-- Seguimiento: "¿Pudieron verificar lo anterior?"
-- Confirma hora: "Perfecto, nos conectamos a esa hora."
-
-REGLAS:
-- ⛔ REGLA #1: NUNCA copies el mensaje del cliente. Tu respuesta NO debe contener las mismas palabras del cliente. Usa palabras COMPLETAMENTE diferentes. Si el cliente dijo "I will try to get Teamviewer running tomorrow", NO repitas eso — di algo como "Entendido, quedo al pendiente."
-- Responde SOLO al último mensaje del cliente.
-- NUNCA inventes info técnica (costos, versiones, pasos, specs, part numbers, números de modelo, fechas específicas). Si no sabes, di "Lo verifico y te confirmo."
-- Si el cliente pide un part number, código o número de serie, NO lo inventes. Di "Lo verifico y te confirmo."
-- No cites el subject del ticket.
-- Si no sabes qué responder, di "Lo verifico y te confirmo." NO ofrezcas TeamViewer como respuesta por defecto.
-- Solo ofrece TeamViewer si el cliente reporta un error activo que requiere diagnóstico remoto.
-- Si el cliente ya envió lo que se pidió (logs, serial, info), NO pidas Issue Report otra vez — reconoce lo recibido.
-- Lee el THREAD COMPLETO antes de responder. Si el agente ya respondió antes, tu respuesta debe continuar esa conversación — NO comiences de cero.
-- Si el cliente hace una pregunta, RESPÓNDELA directamente. Si no sabes, di "Lo verifico y te confirmo."
-- Si el cliente pide cotización/precio, di "Lo verifico con el equipo y te envío la información."
-- NO incluyas firma, nombre ni título al final.${imgRule}
-
-⛔ PROHIBIDO — NUNCA escribas estas frases:
-- "no dudes en" (ni contactarnos, ni contactarme, ni escribirnos)
-- "Estimado" / "Buen día" / "Le informo"
-- "cerrar este ticket" / "mantener ticket"
-- "Espero que te encuentres bien"
-- "cualquier duda" / "Si necesitas más apoyo"
-- "Quedo al pendiente de sus comentarios"
-En vez de "no dudes en contactarnos" di: "cualquier cosa estamos para apoyarte"
-En vez de "si necesitas más ayuda" di: "cualquier cosa estamos para apoyarte"
-En vez de "mantener este ticket" di: "seguimos en contacto"${correctionSection}`
-
-:`KYA MES support, Koh Young. Direct, casual, technical.
-⛔ Read the FULL thread before responding. Respond to the LAST customer message in context with the conversation.
-
-FORMAT: ${rc.hi}, → 1-3 sentences → ${rc.bye}
-⛔ NOTHING after "${rc.bye}". No name, signature, or title after it.
-
-EXAMPLES:
-- Error: "Could you please share the BRM Issue Report? (Help > Issue Report)"
-- Logs received: "Thank you! I will review and keep you posted."
-- Confirms action: "Is everything working properly now?"
-- Unsure: "Let me check and confirm."
-- Remote: "Please give me TeamViewer session."
-- Resolved: "Great to hear! Let me know if anything comes up."
-- Follow-up: "Were you able to check on this?"
-- Confirms time: "Sounds good, I will be available at that time."
-
-RULES:
-- ⛔ RULE #1: NEVER copy the customer's message. Your reply must NOT contain the customer's same words. Use COMPLETELY different words. If the customer said "I will try to get Teamviewer running tomorrow", do NOT repeat that — say something like "Understood, I will wait for your update."
-- Respond ONLY to the customer's last message.
-- NEVER invent technical info (costs, versions, steps, specs, part numbers, model numbers, specific dates). If unsure, say "Let me check and confirm."
-- If the customer asks for a part number, code, or serial number, do NOT make one up. Say "Let me check and confirm."
-- Do NOT quote ticket subject.
-- If unsure what to say, say "Let me check and confirm." Do NOT offer TeamViewer as a default response.
-- Only offer TeamViewer if the customer reports an active error requiring remote diagnosis.
-- If customer already sent what was requested (logs, serial, info), do NOT ask for Issue Report again — acknowledge what they sent.
-- Read the FULL THREAD before responding. If the agent already replied before, your response must continue that conversation — do NOT start from scratch.
-- If the customer asks a question, ANSWER it directly. If unsure, say "Let me check and confirm."
-- If the customer asks for a quote/price, say "Let me check with the team and get back to you with that information."
-- Do NOT add a name, signature, or title after sign-off.${imgRule}
-
-⛔ FORBIDDEN — NEVER write these phrases:
-- "do not hesitate" (nor "don't hesitate")
-- "Dear" / "I hope this email finds you"
-- "close this ticket" / "keep this ticket"
-- "Thank you for reaching out"
-- "If you need further assistance" / "if you need any assistance" / "any questions"
-Instead of "do not hesitate to contact us" say: "let me know if anything comes up"
-Instead of "if you need further assistance" say: "let me know if anything comes up"
-Instead of "keep this ticket" say: "I will keep you posted"${correctionSection}`;
-
-    const lastCustText=lastCust?cleanEmailBody(lastCust.t):'(no customer message)';
-
-    let usrParts=[];
-
-    var currentText=document.getElementById('custom-reply');
-    var liveText=currentText?currentText.value.trim():'';
-    if(extraCtx&&extraCtx.length>0){
-        if(liveText||window._aiReply){
-            var draft=liveText||window._aiReply;
-            var draftLines=draft.split('\n');
-            var draftGreeting=draftLines[0]||rc.hi+',';
-            var draftBye=rc.bye;
-            usrParts.push('=== EDIT TASK ===');
-            usrParts.push('Rewrite this email applying the instruction below.');
-            usrParts.push('⛔ RULES: Start with "'+draftGreeting+'". End with "'+draftBye+'". NOTHING after "'+draftBye+'". No name, no signature.');
-            usrParts.push('\nEMAIL TO EDIT:\n'+draft);
-            usrParts.push('\nCHANGE: '+extraCtx);
-            usrParts.push('\nOutput the complete rewritten email only.');
-        }else{
-            usrParts.push('=== YOUR TASK ===');
-            usrParts.push('INSTRUCTION FROM AGENT: '+extraCtx);
-            usrParts.push('Follow this instruction precisely when writing your reply.');
-            usrParts.push('\nCUSTOMER\'S LAST MESSAGE:\n'+lastCustText);
-        }
-    }else if(isWaiting&&lastAgent){
-        const lastAgentText=cleanEmailBody(lastAgent.t);
-        usrParts.push('=== YOUR TASK ===');
-        usrParts.push('ACTION: '+action);
-        usrParts.push('\nYOUR LAST MESSAGE (agent):\n'+lastAgentText);
-        if(lastCust)usrParts.push('\nCUSTOMER\'S LAST MESSAGE:\n'+lastCustText);
-    }else{
-        usrParts.push('=== YOUR TASK ===');
-        usrParts.push('ACTION: '+action);
-        usrParts.push('\nCUSTOMER\'S LAST MESSAGE (you MUST respond to THIS):\n'+lastCustText);
-    }
-
-    var isRegenerate=extraCtx&&extraCtx.length>0&&(liveText||window._aiReply);
-    if(!isRegenerate){
-        usrParts.push('');
-        usrParts.push('=== TICKET CONTEXT (for your understanding only — do NOT quote ticket subject or number in your reply) ===');
-        usrParts.push('Ticket #'+rc.t.id+': '+rc.t.subject);
-        usrParts.push('Customer: '+rc.firstName);
-        if(rc.ctx.mainIssue)usrParts.push('Issue: '+rc.ctx.mainIssue);
-        if(hasImages)usrParts.push('⚠ Customer sent images/screenshots (you CANNOT see them)');
-
-        usrParts.push('\nCONVERSATION THREAD (for context only — respond to the LAST message above):');
-        usrParts.push(thread);
-
-        if(spLink)usrParts.push('\nSHAREPOINT FOLDER: '+spLink+'\nWhen asking customer to upload files, include this link.\n');
-        if(kbSection)usrParts.push('\nVERIFIED SOLUTIONS (use if relevant):\n'+kbSection);
-        if(sugSection)usrParts.push('\nEXAMPLE REPLIES:\n'+sugSection);
-        if(triedList)usrParts.push('\nAlready tried (do NOT suggest again): '+triedList);
-
-        var examples=getAIExamples(esL?'es':'en',3,lastCustText);
-        if(examples.length){
-            usrParts.push('\n=== LEARNED EXAMPLES (this agent\'s real replies — match this style) ===');
-            examples.forEach(function(ex){
-                usrParts.push('Customer: '+ex.c+'\nAgent replied: '+ex.a+'\n');
-            });
-        }
-    }
-
-    usrParts.push('\nWrite ONLY the email. Start with "'+rc.hi+'," end with "'+rc.bye+'". Nothing else.');
-
-    const usr=usrParts.join('\n');
-    return{sys,usr};
-}
-
-function cleanAIReply(text){
-    let t=text;
-    const rc=window._replyCtx;
-    const hi=rc?rc.hi:'Hi';
-    const bye=rc?rc.bye:'Best regards,';
-    const hiIdx=t.indexOf(hi+',');
-    if(hiIdx>0)t=t.substring(hiIdx);
-    const byeIdx=t.lastIndexOf(bye);
-    if(byeIdx>0)t=t.substring(0,byeIdx+bye.length);
-    t=t.replace(/\*\*/g,'').replace(/^#{1,3}\s+.*$/gm,'');
-    t=t.replace(/\[Your Name.*?\]/gi,'').replace(/\[Team Name.*?\]/gi,'');
-    t=t.trim();
-    return t;
-}
-
-async function tryOllama(sys,usr){
+async function tryOllama(sys,usr,analysis){
+    var model=window._ollamaModel||'qwen2.5:7b';
+    const ta=document.getElementById('custom-reply');
     const resp=await fetch('/ollama',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'qwen2.5:7b',messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:false,keep_alive:-1,options:{temperature:0.2,num_predict:400,num_ctx:6144,top_p:0.8,repeat_penalty:1.3}})
+        body:JSON.stringify({model:model,messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:true,keep_alive:-1,options:{temperature:0.2,num_predict:400,num_ctx:6144,top_p:0.8,repeat_penalty:1.3}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
-    const data=await resp.json();
-    let reply=data.message?data.message.content:'';
-    reply=cleanAIReply(reply);
-    return{reply,provider:'Ollama (Qwen 2.5 7B)'};
+    const reader=resp.body.getReader();
+    const dec=new TextDecoder();
+    let reply='',buf='';
+    while(true){
+        const{done,value}=await reader.read();
+        if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        const lines=buf.split('\n');
+        buf=lines.pop();
+        for(const ln of lines){
+            if(!ln.trim())continue;
+            try{
+                const chunk=JSON.parse(ln);
+                if(chunk.message&&chunk.message.content){
+                    reply+=chunk.message.content;
+                    if(ta){ta.value=reply;ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';}
+                }
+            }catch(e){}
+        }
+    }
+    if(buf.trim()){try{const chunk=JSON.parse(buf);if(chunk.message&&chunk.message.content)reply+=chunk.message.content}catch(e){}}
+    var rc=window._replyCtx;
+    if(rc&&analysis){
+        var validated=AIPipeline.validate(reply,analysis,rc);
+        reply=validated.text;
+    }
+    return{reply,provider:'Ollama ('+model+')'};
 }
 
 async function ensureSPFolder(){
@@ -2849,15 +2534,16 @@ async function generateAI(provider,extraCtx){
     btns.forEach(b=>{b.disabled=true});
     const esL=rc.lang==='es';
 
-    if(ta){ta.disabled=true;ta.placeholder=esL?'Generando respuesta con IA...':'Generating reply with AI...';}
     out.innerHTML='<div class="loading-msg">'+(esL?'Generando respuesta':'Generating reply')+'</div>';
+    if(ta){ta.disabled=false;ta.value='';ta.placeholder=esL?'Generando...':'Generating...';}
 
     let spLink=getSPLink(D.cur.id);
     const initialSpLink=spLink;
     if(!extraCtx){const el=document.getElementById('ai-extra');if(el)extraCtx=el.value.trim()}
-    const{sys,usr}=aiPrompt(rc,extraCtx||'',spLink);
+    var aiResult=AIPipeline.generate(rc,extraCtx||'',spLink);
+    const{sys,usr}=aiResult;
     let result=null;
-    try{result=await tryOllama(sys,usr)}catch(e){
+    try{result=await tryOllama(sys,usr,aiResult.analysis)}catch(e){
         out.innerHTML='<div class="ctx-box">'+(esL?'Ollama no disponible. Asegúrate de que esté corriendo.':'Ollama not available. Make sure it is running.')+'</div>';
         if(ta){ta.disabled=false;ta.placeholder=esL?'Escribe tu respuesta aquí...':'Write your reply here...';}
         btns.forEach(b=>{b.disabled=false});return;
@@ -3041,7 +2727,7 @@ function copySPLink(ticketId){
     try{navigator.clipboard.writeText(link)}catch(e){
         const ta=document.createElement('textarea');ta.value=link;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
     }
-    const btn=event.target;btn.textContent='Copied!';setTimeout(()=>{btn.textContent='Copy link'},1500);
+    const btn=document.querySelector('[onclick*="copySPLink('+ticketId+')"]');if(btn){btn.textContent='Copied!';setTimeout(()=>{btn.textContent='Copy link'},1500);}
 }
 function extractTicketEmails(){
     const exclude=new Set(['kya_support@kohyoung.com','kohyoungcomkya_support@kyexpert.freshdesk.com']);
@@ -3105,8 +2791,13 @@ async function createSPFolder(ticketId){
 /* =============== SEND REPLY MODAL =============== */
 function cleanSignature(html){
     if(!html)return '';
-    html=html.replace(/\{\{ticket\.url\}\}/g,'');
+    html=html.replace(/&nbsp;/gi,' ');
+    html=html.replace(/\{\{[^}]*\}\}/g,'');
+    html=html.replace(/(hola\s+hello|hello\s+hola|hola|hello|hi|hey|dear|buenos\s+d[ií]as|buenas\s+tardes|buen\s+d[ií]a|estimado)[,.\s]*/i,'');
     html=html.replace(/(saludos\s+cordiales\s*[\/,.\s]*best\s+regards|best\s+regards\s*[\/,.\s]*saludos\s+cordiales|saludos\s+cordiales|best\s+regards|kind\s+regards|sincerely|cordialmente|atentamente)\s*[,.]*/i,'');
+    for(var i=0;i<3;i++)html=html.replace(/<(div|p|span)[^>]*>(\s|<br\s*\/?>)*<\/\1>/gi,'');
+    html=html.replace(/(<br\s*\/?\s*>\s*){3,}/gi,'<br><br>');
+    html=html.replace(/^(\s*(<br\s*\/?>)\s*)*/gi,'');
     return html;
 }
 
@@ -3255,18 +2946,13 @@ async function confirmSendReply(){
 
         if(rc){
             var sent=text;
-            var lastCustMsgs=rc.m.filter(function(x){return x.f==='Customer'});
-            var lastCustMsg=lastCustMsgs.length?cleanEmailBody(lastCustMsgs[lastCustMsgs.length-1].t):'';
-            if(lastCustMsg){
-                saveAIExample(lastCustMsg,sent,rc.lang,D.cur.subject);
-            }
             if(window._aiOriginal&&window._aiOriginal!==sent){
                 var w1=window._aiOriginal.toLowerCase().split(/\s+/);
                 var w2=sent.toLowerCase().split(/\s+/);
                 var cm=w1.filter(function(w){return w2.indexOf(w)>=0}).length;
                 var sim=cm/Math.max(w1.length,w2.length,1);
                 if(sim<0.85){
-                    saveAICorrection(window._aiOriginal,sent,rc.lang);
+                    AIPipeline.saveCorrection(window._aiOriginal,sent,rc.lang);
                     statusEl.textContent+=(esL?' (corrección guardada)':' (correction saved)');
                 }
             }

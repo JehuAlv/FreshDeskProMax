@@ -120,14 +120,40 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(400, 'Empty body')
             return
         raw = self.rfile.read(length)
+
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            self.send_error(400, 'Invalid JSON')
+            return
+
+        is_stream = payload.get('stream', False)
         t0 = time.time()
 
         for attempt in range(2):
             req = urllib.request.Request('http://127.0.0.1:11434/api/chat', data=raw, method='POST')
             req.add_header('Content-Type', 'application/json')
             try:
-                with urllib.request.urlopen(req, timeout=120) as resp:
+                resp = urllib.request.urlopen(req, timeout=120)
+                if is_stream:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/event-stream')
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    try:
+                        for line in resp:
+                            self.wfile.write(line)
+                            self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+                    finally:
+                        resp.close()
+                    elapsed = time.time() - t0
+                    print('[ollama] Streamed in %.1fs' % elapsed)
+                else:
                     body = resp.read()
+                    resp.close()
                     elapsed = time.time() - t0
                     print('[ollama] Response in %.1fs' % elapsed)
                     self.send_response(200)
@@ -135,7 +161,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header('Access-Control-Allow-Origin', '*')
                     self.end_headers()
                     self.wfile.write(body)
-                    return
+                return
             except urllib.error.HTTPError as e:
                 body = e.read()
                 if attempt == 0 and _is_cuda_error(body):
@@ -320,6 +346,6 @@ class ThreadedServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 _kill_previous()
 threading.Thread(target=_preload_model, daemon=True).start()
-server = ThreadedServer(('0.0.0.0', PORT), ProxyHandler)
+server = ThreadedServer(('127.0.0.1', PORT), ProxyHandler)
 print('[proxy] Listening on port %d' % PORT)
 server.serve_forever()
