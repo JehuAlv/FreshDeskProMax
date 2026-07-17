@@ -5,16 +5,6 @@ __pycache__/
 *.log
 Sharepoint/token_cache.json
 Sharepoint/.env
-deploy/*.zip
-deploy/releases/
-start-proxy.vbs
-stop-proxy.vbs
-
-# Dev/training files
-_teamBank_*.js
-team_*.json
-train_*.py
-train_*.json
-test_*.py
-analyze_*.py
-build_*.py
+deploy/
+scripts/
+build-installer.bat
