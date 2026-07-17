@@ -311,41 +311,24 @@ var AIPipeline = (function() {
 
         if (esL) {
             return 'Ingeniero de soporte MES, Koh Young (BRM para AOI/SPI).\n'
-                + 'Tuteo. Directo y breve. 1-4 oraciones de cuerpo.\n'
-                + 'Formato: ' + hi + ', → cuerpo → ' + bye + '\n'
-                + 'NADA después de "' + bye + '". Sin firma, sin nombre.\n\n'
-                + 'ESTILO (usa estas frases reales):\n'
-                + '- Disculpa: "Una disculpa por las molestias"\n'
-                + '- Pedir info: "me pudieras compartir..." / "nos podrías compartir..."\n'
-                + '- Para entender: "Para comprender mejor el problema"\n'
-                + '- Esperar: "quedo pendiente" / "quedamos al pendiente" / "quedo atento"\n'
-                + '- Aceptar: "De acuerdo" / "Perfecto" / "Excelente" / "Muy bien"\n'
-                + '- Sin problema: "no hay problema"\n\n'
-                + 'NO HACER:\n'
-                + '- No repetir lo que dijo el cliente\n'
-                + '- No repetir datos del cliente (seriales, fechas, horas)\n'
-                + '- No inventar pasos técnicos, rutas de menú ni configuraciones\n'
-                + '- No mencionar cerrar/mantener ticket\n'
-                + '- NUNCA usar: "Gracias por informarnos", "para ayudarte mejor", "necesitamos algunos detalles", "te informo que", "te confirmo que", "a la brevedad posible", "Es importante", "los siguientes pasos", "Estimado/a", "Buen día", "No dudes en contactarnos", "cualquier duda", "Si necesitas más apoyo"'
+                + 'REGLA #1: Sigue la instrucción ACTION al pie de la letra. Esa es tu tarea principal.\n'
+                + 'PROHIBIDO responder solo "lo reviso y te confirmo" o "lo verifico y te confirmo" — eso NO es una respuesta real.\n\n'
+                + 'Tuteo. 2-4 oraciones de cuerpo. Formato: ' + hi + ', → cuerpo → ' + bye + '\n'
+                + 'NADA después de "' + bye + '". Sin firma.\n\n'
+                + 'Frases naturales: "Una disculpa por las molestias" · "me pudieras compartir" · "nos podrías compartir" · "Para comprender mejor el problema" · "quedo pendiente" · "De acuerdo" · "Perfecto" · "no hay problema"\n'
+                + 'No repetir datos del cliente. No inventar pasos técnicos. No mencionar cerrar ticket.\n'
+                + 'NUNCA: "Gracias por informarnos", "para ayudarte mejor", "te informo que", "a la brevedad", "Estimado", "No dudes en contactarnos"'
                 + imgRule
                 + correctionHints;
         } else {
             return 'MES support engineer, Koh Young (BRM for AOI/SPI).\n'
-                + 'Direct and brief. 1-4 body sentences.\n'
-                + 'Format: ' + hi + ', → body → ' + bye + '\n'
-                + 'NOTHING after "' + bye + '". No signature, no name.\n\n'
-                + 'STYLE (use these real phrases):\n'
-                + '- Apology: "I apologize for the inconvenience"\n'
-                + '- Ask info: "could you please share..." / "could you share..."\n'
-                + '- Understand: "To better understand the issue"\n'
-                + '- Wait: "please let me know any updates" / "let me know"\n'
-                + '- Accept: "No problem" / "Sounds good" / "Thanks for the update"\n\n'
-                + 'DO NOT:\n'
-                + '- Do NOT repeat customer\'s words\n'
-                + '- Do NOT repeat customer data (serials, dates, times)\n'
-                + '- Do NOT invent technical steps, menu paths, or configurations\n'
-                + '- Do NOT mention closing/keeping ticket\n'
-                + '- NEVER use: "Thank you for reaching out", "I hope this finds you well", "Please do not hesitate", "If you need further assistance", "Dear", "any questions"'
+                + 'RULE #1: Follow the ACTION instruction exactly. That is your main task.\n'
+                + 'FORBIDDEN to reply only "let me check and confirm" or "received, I will review" — that is NOT a real response.\n\n'
+                + 'Casual tone. 2-4 body sentences. Format: ' + hi + ', → body → ' + bye + '\n'
+                + 'NOTHING after "' + bye + '". No signature.\n\n'
+                + 'Natural phrases: "I apologize for the inconvenience" · "could you share" · "To better understand the issue" · "let me know" · "Sounds good" · "No problem"\n'
+                + 'Do not repeat customer data. Do not invent technical steps. Do not mention closing ticket.\n'
+                + 'NEVER: "Thank you for reaching out", "do not hesitate", "Dear", "If you need further assistance"'
                 + imgRule
                 + correctionHints;
         }
@@ -359,66 +342,94 @@ var AIPipeline = (function() {
         var isFirst = analysis.isFirst;
         var lastAgentText = analysis.lastAgentText.toLowerCase();
         var custLower = analysis.lastCustText.toLowerCase();
+        var es = analysis.lang === 'es';
 
         if (isWaiting && analysis.lastAgentText) {
             if (/teamviewer|remote|session|sesión|conectar/.test(lastAgentText))
-                return 'Follow up: ask if they are available for the remote session. Example: "Quedo pendiente a cualquier actualización." Be brief.';
+                return es ? 'Seguimiento: pregunta si ya están disponibles para la sesión remota. Ejemplo: "Quedo pendiente a cualquier actualización."'
+                    : 'Follow up: ask if they are available for the remote session. Example: "Please let me know when you are available."';
             if (/issue.*report|log|registro|reporte/.test(lastAgentText))
-                return 'Follow up: ask if they gathered the logs/issue report. Example: "Me pudieras confirmar si ya cuentas con el issue report?"';
+                return es ? 'Seguimiento: pregunta si ya tienen el issue report. Ejemplo: "Me pudieras confirmar si ya cuentas con el issue report?"'
+                    : 'Follow up: ask if they gathered the logs/issue report. Example: "Could you confirm if you have the Issue Report ready?"';
             if (/kbr|apply|install|aplicar|instalar/.test(lastAgentText))
-                return 'Follow up: ask if they applied the KBR. Example: "Me pudieras confirmar si después de la actualización todo funciona como esperaban?"';
-            return 'Follow up: ask if they still need help. Example: "Quedo pendiente a cualquier actualización en este ticket."';
+                return es ? 'Seguimiento: pregunta si aplicaron el KBR. Ejemplo: "Me pudieras confirmar si después de la actualización todo funciona como esperaban?"'
+                    : 'Follow up: ask if they applied the KBR. Example: "Could you confirm if everything is working as expected after the update?"';
+            return es ? 'Seguimiento: pregunta si aún necesitan ayuda. Ejemplo: "Quedo pendiente a cualquier actualización en este ticket."'
+                    : 'Follow up: ask if they still need help. Example: "Please let me know if you need any further assistance."';
         }
 
         switch (intent) {
             case 'urgent':
-                return 'URGENT. Ask for remote credentials immediately. Example: "Nos podrías compartir credenciales de acceso remoto para conectarnos lo antes posible?"';
+                return es ? 'URGENTE. Pide credenciales remotas de inmediato: "Nos podrías compartir credenciales de acceso remoto para conectarnos lo antes posible?"'
+                    : 'URGENT. Ask for remote credentials immediately: "Could you share remote access credentials so we can connect as soon as possible?"';
             case 'resolved':
-                return 'Customer says resolved. Reply warmly: "Excelente!" or "Muy bien". Say "quedo pendiente a cualquier situación". Do NOT mention closing ticket.';
+                return es ? 'Cliente dice que se resolvió. Responde con gusto: "Excelente!" o "Muy bien". Cierra con "quedo pendiente a cualquier situación".'
+                    : 'Customer says resolved. Reply warmly: "Great!" or "Glad to hear that!". End with "please let me know if anything else comes up."';
             case 'tv_creds':
                 if (/\?|how|what|why|can you|could you|también|also|but|pero|cómo|qué/.test(custLower))
-                    return 'Customer shared TV credentials AND asked a question. Say "enseguida me conecto" then briefly address their question.';
-                return 'Customer shared TV credentials. ONE sentence only: "Recibido, enseguida me conecto."';
+                    return es ? 'Cliente compartió credenciales TV Y preguntó algo. Di "enseguida me conecto" y responde brevemente su pregunta.'
+                        : 'Customer shared TV credentials AND asked a question. Say "connecting now" then briefly address their question.';
+                return es ? 'Cliente compartió credenciales TV. UNA sola oración: "Recibido, enseguida me conecto."'
+                    : 'Customer shared TV credentials. ONE sentence only: "Received, connecting now."';
             case 'quote':
-                return 'Quote request. Acknowledge: "en breve te comparto la cotización" or "lo reviso con el equipo".';
+                return es ? 'Solicitud de cotización. Di "en breve te comparto la cotización" o "lo reviso con el equipo".'
+                    : 'Quote request. Say "I will review the requirements and provide a quote shortly." or "Let me check with the team."';
             case 'error_first':
                 if (analysis.hasImages)
-                    return 'Customer reported error with images you cannot see. Say "Una disculpa por las molestias." Ask: "nos podrías compartir el issue report?" Do NOT invent steps.';
-                var askFor = [];
-                if (missing.indexOf('issue_report') >= 0) askFor.push('los registros de BRM (BRM > Help > Issue Report)');
-                if (missing.indexOf('serial_number') >= 0) askFor.push('el serial del equipo');
-                if (missing.indexOf('remote_access') >= 0) askFor.push('credenciales de acceso remoto');
-                return 'Customer reported error. Say "Una disculpa por las molestias. Para comprender mejor el problema,"' + (askFor.length ? ' ask: "nos podrías compartir ' + askFor.join(', ') + '?"' : ' offer remote session.') + ' Do NOT invent diagnostic steps.';
+                    return es ? 'Cliente reportó error con imágenes que NO puedes ver. Di "Una disculpa por las molestias." Pide: "nos podrías compartir el Issue Report?"'
+                        : 'Customer reported error with images you cannot see. Say "I apologize for the inconvenience." Ask: "Could you share the BRM Issue Report (Help > Issue Report)?"';
+                var askEs = [], askEn = [];
+                if (missing.indexOf('issue_report') >= 0) { askEs.push('los registros de BRM (BRM > Help > Issue Report)'); askEn.push('the BRM Issue Report (Help > Issue Report)'); }
+                if (missing.indexOf('serial_number') >= 0) { askEs.push('el serial del equipo'); askEn.push('the machine serial number'); }
+                if (missing.indexOf('remote_access') >= 0) { askEs.push('credenciales de acceso remoto'); askEn.push('remote access credentials'); }
+                return es
+                    ? 'Cliente reportó error. Di "Una disculpa por las molestias. Para comprender mejor el problema,"' + (askEs.length ? ' pide: "nos podrías compartir ' + askEs.join(', ') + '?"' : ' ofrece sesión remota.') + ' NO inventes pasos.'
+                    : 'Customer reported error. Say "I apologize for the inconvenience. To better understand the issue,"' + (askEn.length ? ' ask: "could you share ' + askEn.join(', ') + '?"' : ' offer a remote session.') + ' Do NOT invent diagnostic steps.';
             case 'persists':
-                return 'Problem persists. Say "Una disculpa" then ask for remote session: "podríamos conectarnos a su equipo mediante conexión remota?"';
+                return es ? 'Problema persiste. Di "Una disculpa por las molestias" y pide sesión remota: "podríamos conectarnos a su equipo mediante conexión remota?"'
+                    : 'Problem persists. Say "I apologize for the inconvenience" then ask: "could we schedule a remote session to take a closer look?"';
             case 'scheduling':
-                return 'Customer proposes schedule. Confirm or propose alternative. Example: "Muy bien, queda reservado el espacio." Do NOT repeat their dates/times.';
+                return es ? 'Cliente propone horario. Confirma o propón alternativa. Ejemplo: "Muy bien, queda reservado el espacio." NO repitas sus fechas/horas.'
+                    : 'Customer proposes schedule. Confirm or propose alternative. Example: "Sounds good, that time works." Do NOT repeat their dates/times.';
             case 'confirm_time':
-                return 'Customer confirmed time. Say "Perfecto" or "De acuerdo". Ask for remote credentials if not provided: "quedamos al pendiente de las credenciales remotas."';
+                return es ? 'Cliente confirmó horario. Di "Perfecto" o "De acuerdo". Si no dio credenciales remotas: "quedamos al pendiente de las credenciales remotas."'
+                    : 'Customer confirmed time. Say "Perfect" or "Sounds good." If no remote credentials: "we will need remote access credentials before the session."';
             case 'files_shared':
                 if (/error|issue|problem|fail|exception/.test(custLower))
-                    return 'Customer shared files about error. Say "lo reviso" or "le estamos dando seguimiento".';
-                return 'Customer shared info/files. Say "Recibido, lo reviso." or "Gracias por compartir, lo reviso."';
+                    return es ? 'Cliente compartió archivos sobre un error. Di "lo reviso" o "le estamos dando seguimiento".'
+                        : 'Customer shared files about an error. Say "I will review them" or "we are looking into it."';
+                return es ? 'Cliente compartió info/archivos. Di "Recibido, lo reviso." o "Gracias por compartir, lo reviso."'
+                    : 'Customer shared info/files. Say "Received, I will review." or "Thanks for sharing, I will take a look."';
             case 'will_check':
-                return 'Customer says they will check/test later. Say "De acuerdo, no hay problema" or "Perfecto". End with "quedo pendiente" or "quedamos al pendiente". Do NOT repeat what they said. Do NOT ask questions.';
+                return es ? 'Cliente dice que va a verificar después. Di "De acuerdo, no hay problema" o "Perfecto". Cierra con "quedo pendiente". NO repitas lo que dijo. NO hagas preguntas.'
+                    : 'Customer says they will check/test later. Say "Sounds good, no problem" or "Perfect, take your time." End with "let me know." Do NOT repeat what they said. Do NOT ask questions.';
             case 'completed_action':
-                return 'Customer completed action. Ask: "Me pudieras confirmar si todo funciona como esperaban?"';
+                return es ? 'Cliente completó una acción. Pregunta: "Me pudieras confirmar si todo funciona como esperaban?"'
+                    : 'Customer completed an action. Ask: "Could you confirm if everything is working as expected?"';
             case 'status_request':
-                return 'Status request. Be direct. Say "le estamos dando seguimiento" or give honest current state.';
+                return es ? 'Solicitud de estatus. Sé directo. Di "le estamos dando seguimiento" o da el estado actual honesto.'
+                    : 'Status request. Be direct. Say "we are working on it" or give the honest current state.';
             case 'question':
                 if (/es posible|is it possible|can we|podemos|se puede/.test(custLower))
-                    return 'Technical question. If unsure say "lo reviso y te confirmo". Do NOT invent steps.';
-                return 'Customer asked a question. Answer directly. If unsure say "lo reviso y te confirmo". Do NOT invent technical details.';
+                    return es ? 'Pregunta técnica. Si no estás seguro di "lo reviso y te confirmo". NO inventes pasos.'
+                        : 'Technical question. If unsure say "let me check and confirm." Do NOT invent steps.';
+                return es ? 'Cliente hizo una pregunta. Responde directamente. Si no estás seguro di "lo reviso y te confirmo". NO inventes detalles técnicos.'
+                    : 'Customer asked a question. Answer directly. If unsure say "let me check and confirm." Do NOT invent technical details.';
             case 'waiting_session':
-                return 'Customer is WAITING in session. ONE sentence: "enseguida me conecto" or "Connecting now."';
+                return es ? 'Cliente ESPERANDO en sesión. UNA oración: "enseguida me conecto."'
+                    : 'Customer is WAITING in session. ONE sentence: "Connecting now."';
             case 'meeting_invite':
-                return 'Customer asks for meeting invite. Say "enseguida te envío la invitación" or "I will send you the invite."';
+                return es ? 'Cliente pide invitación a reunión. Di "enseguida te envío la invitación."'
+                    : 'Customer asks for meeting invite. Say "I will send you the invite shortly."';
             default:
                 if (isFirst && /adjunto|attach|especificaci|specification|requerimiento|requirement|propuest|proposal/.test(custLower))
-                    return 'Customer shared requirements. Say "Recibido, lo reviso con el equipo." Do NOT invent details.';
+                    return es ? 'Cliente compartió requerimientos. Di "Recibido, lo reviso con el equipo." NO inventes detalles.'
+                        : 'Customer shared requirements. Say "Received, I will review with the team." Do NOT invent details.';
                 if (isFirst && analysis.hasImages)
-                    return 'Customer sent images you cannot see. Acknowledge receipt. Ask what the images show or offer "conexión remota".';
-                return 'Respond to what the customer is saying. Be direct and brief. If unclear, ask ONE question. Do NOT restate what they told you. Do NOT invent technical steps.';
+                    return es ? 'Cliente envió imágenes que NO puedes ver. Reconoce que las recibiste. Pregunta qué muestran u ofrece "conexión remota".'
+                        : 'Customer sent images you cannot see. Acknowledge receipt. Ask what the images show or offer a remote session.';
+                return es ? 'Responde a lo que dice el cliente. Sé directo y breve. Si no queda claro, haz UNA pregunta. NO repitas lo que te dijeron. NO inventes pasos técnicos.'
+                    : 'Respond to what the customer is saying. Be direct and brief. If unclear, ask ONE question. Do NOT restate what they told you. Do NOT invent technical steps.';
         }
     }
 
@@ -451,11 +462,11 @@ var AIPipeline = (function() {
                 parts.push('\nCUSTOMER MESSAGE:\n' + lastCustText);
             }
         } else {
-            parts.push('ACTION: ' + action);
+            parts.push('=== ACTION (you MUST follow this) ===\n' + action);
             if (analysis.isWaiting && analysis.lastAgentText) {
                 parts.push('\nYOUR LAST MESSAGE:\n' + cleanEmailBody(analysis.lastAgentText));
             }
-            parts.push('\nCUSTOMER MESSAGE (respond to THIS):\n' + lastCustText);
+            parts.push('\n=== CUSTOMER MESSAGE ===\n' + lastCustText);
         }
 
         if (!extraCtx || !(currentDraft || (typeof window !== 'undefined' && window._aiReply))) {
@@ -587,7 +598,7 @@ var AIPipeline = (function() {
         var byeNorm = bye.replace(/\s+/g, '').toLowerCase();
         var lines = t.split('\n');
         for (var li = lines.length - 1; li >= 0; li--) {
-            if (lines[li].replace(/\s+/g, '').toLowerCase().indexOf(byeNorm) !== -1) {
+            if (lines[li].replace(/\s+/g, '').toLowerCase().indexOf(byeNorm) !== -1 && lines[li].trim().length < 40) {
                 lines[li] = bye;
                 break;
             }
@@ -650,9 +661,7 @@ var AIPipeline = (function() {
         var cw = lastCustText.toLowerCase().replace(/[^a-záéíóúñü\s]/g, '').split(/\s+/).filter(function(w) { return w.length > 4; });
         if (cw.length > 0) {
             var hits = cw.filter(function(w) { return body.indexOf(w) !== -1; }).length;
-            var parrotThreshold = cw.length < 5 ? 0.80 : (cw.length < 10 ? 0.55 : 0.45);
-            if (hits / cw.length > parrotThreshold) {
-                t = hi + ',\n\n' + (esL ? 'Recibido, lo reviso y te doy seguimiento.' : 'Received, let me check and follow up.') + '\n\n' + bye;
+            if (hits / cw.length > 0.90) {
                 issues.push('parrot');
             }
         }
