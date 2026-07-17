@@ -5,8 +5,8 @@ title Freshdesk Dashboard - Starting...
 set "DIR=%~dp0"
 set "DIR=%DIR:~0,-1%"
 
-:: Start proxy (it handles killing previous instances and starting Ollama)
-start "" /min cmd /c "cd /d "%DIR%" && python proxy.py"
+:: Start proxy with auto-restart watchdog
+start "" /min cmd /c "cd /d "%DIR%" && "%DIR%\watchdog.bat""
 
 :: Wait for proxy to be ready
 timeout /t 5 /nobreak >nul
@@ -22,7 +22,7 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
     if not "!ip!"=="" echo   http://!ip!:8080
 )
 echo.
-echo   Proxy:  port 8080
+echo   Proxy:  port 8080  (auto-restart enabled)
 echo   Ollama: port 11434
 echo.
 echo   Services are running in the background.
