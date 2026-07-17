@@ -13,21 +13,13 @@ async function fetchByStatus(st){
     }catch(e){return[]}
 }
 
-async function checkLastReply(tid){
-    var batch=await get('tickets/'+tid+'/conversations?per_page=100');
-    if(!batch||!batch.length)return true;
-    if(batch.length>=100){
-        var page=2;
-        while(true){
-            var more=await get('tickets/'+tid+'/conversations?per_page=100&page='+page);
-            if(!more||!more.length)break;
-            batch=batch.concat(more);
-            if(more.length<100)break;
-            page++;
-        }
-    }
-    for(var i=batch.length-1;i>=0;i--){if(!batch[i].private)return batch[i].incoming!==false}
-    return true;
+function lastReplyFromStats(stats){
+    if(!stats)return true;
+    var ar=stats.agent_responded_at;
+    var rr=stats.requester_responded_at;
+    if(!ar)return true;
+    if(!rr)return false;
+    return rr>ar;
 }
 
 var _progBar,_progFill;
@@ -46,21 +38,23 @@ async function loadAll(){
     var craw=JSON.parse(localStorage.getItem('fd_cache4')||'{}');
     const cache=craw._v===6?craw:{_v:6};
     let done=0;const total=D.allOpen.length;
-    var _loadThrottle=0;function tick(){done++;showProg(done,total);if(!_loadThrottle){_loadThrottle=setTimeout(function(){_loadThrottle=0;applyFilter()},2000)}}
+    var _loadThrottle=0;function tick(){done++;showProg(done,total);if(!_loadThrottle){_loadThrottle=setTimeout(function(){_loadThrottle=0;applyFilter()},500)}}
     D.allOpen.forEach(function(t){
         var c=cache[t.id];
         if(c&&c.u===t.updated_at&&c.rn&&c.rn!=='Unknown'){D.lr[t.id]=!!c.lr;t._reqName=c.rn;t._company=c.co;tick()}
     });
     applyFilter();
     await Promise.all(D.allOpen.filter(function(t){return !cache[t.id]||cache[t.id].u!==t.updated_at}).map(function(t){
-        var lr=checkLastReply(t.id).catch(function(){return true});
-        var det=get('tickets/'+t.id+'?include=requester,company').catch(function(){return null});
-        return Promise.all([lr,det]).then(function(r){
-            D.lr[t.id]=!!r[0];
-            t._reqName=r[1]&&r[1].requester?r[1].requester.name:'Unknown';
-            t._company=r[1]?coName(r[1]):'';
-            if(r[1])cache[t.id]={u:t.updated_at,lr:r[0],rn:t._reqName,co:t._company};
-            else cache[t.id]={u:null,lr:r[0],rn:t._reqName,co:t._company};
+        return get('tickets/'+t.id+'?include=stats,requester,company').then(function(d){
+            var lr=lastReplyFromStats(d.stats);
+            D.lr[t.id]=lr;
+            t._reqName=d.requester?d.requester.name:'Unknown';
+            t._company=coName(d);
+            cache[t.id]={u:t.updated_at,lr:lr,rn:t._reqName,co:t._company};
+            tick();
+        }).catch(function(){
+            D.lr[t.id]=true;
+            t._reqName='Unknown';t._company='';
             tick();
         });
     }));
@@ -71,19 +65,26 @@ async function loadAll(){
 async function loadNewTickets(){
     try{
         if(!D._teamIds){
-            let allAgents=[],apg=1;
-            while(true){
-                const a=await get('agents?per_page=100&page='+apg);
-                allAgents=allAgents.concat(a);
-                if(a.length<100)break;
-                apg++;
+            var cached=localStorage.getItem('fd_teamIds');
+            if(cached){
+                var p=JSON.parse(cached);
+                D._teamIds=p.ids;D._agentMap=p.map;
+            }else{
+                let allAgents=[],apg=1;
+                while(true){
+                    const a=await get('agents?per_page=100&page='+apg);
+                    allAgents=allAgents.concat(a);
+                    if(a.length<100)break;
+                    apg++;
+                }
+                D._agentMap={};
+                allAgents.forEach(a=>{D._agentMap[a.id]=a.contact?a.contact.name:'Agent #'+a.id});
+                D._teamIds=allAgents.filter(a=>{
+                    const n=a.contact?a.contact.name:'';
+                    return /alexis|ramiro/i.test(n);
+                }).map(a=>a.id);
+                try{localStorage.setItem('fd_teamIds',JSON.stringify({ids:D._teamIds,map:D._agentMap}))}catch(e){}
             }
-            D._agentMap={};
-            allAgents.forEach(a=>{D._agentMap[a.id]=a.contact?a.contact.name:'Agent #'+a.id});
-            D._teamIds=allAgents.filter(a=>{
-                const n=a.contact?a.contact.name:'';
-                return /alexis|ramiro/i.test(n);
-            }).map(a=>a.id);
         }
         if(!D._teamIds.length){D.newTks=[];updateNewBadge();return}
 
