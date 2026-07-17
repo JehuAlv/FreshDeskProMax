@@ -12,7 +12,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 PORT = 8080
-MODEL = 'qwen2.5:7b'
+MODEL = 'qwen3.5:9b'
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Sharepoint'))
 import create_ticket_folder as sp

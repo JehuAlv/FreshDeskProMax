@@ -1,10 +1,10 @@
 async function tryOllama(sys,usr,analysis){
-    var model=window._ollamaModel||'qwen2.5:7b';
+    var model=window._ollamaModel||'qwen3.5:9b';
     const ta=document.getElementById('custom-reply');
     const resp=await fetch('/ollama',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:model,messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:true,think:false,keep_alive:-1,options:{temperature:0.2,num_predict:200,num_ctx:4096,top_p:0.8,repeat_penalty:1.3}})
+        body:JSON.stringify({model:model,messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:true,think:false,keep_alive:-1,options:{temperature:0.3,num_predict:200,num_ctx:4096,top_p:0.8,repeat_penalty:1.1}})
     });
     if(!resp.ok)throw new Error('Ollama '+resp.status);
     const reader=resp.body.getReader();

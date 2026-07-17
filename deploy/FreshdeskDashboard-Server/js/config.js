@@ -5,15 +5,15 @@ const SN={2:'Open',3:'Pending',4:'Resolved',5:'Closed',8:'ReOpen',9:'On-hold',11
 const SCLS={2:'chip-open',3:'chip-pending',4:'chip-resolved',5:'chip-closed',8:'chip-open',9:'chip-pending',11:'chip-pending'};
 
 var OLLAMA_DEFAULTS={
-    model:'qwen2.5:7b',
+    model:'qwen3.5:9b',
     stream:true,
     think:false,
     keep_alive:-1,
     options:{
-        temperature:0.2,
+        temperature:0.3,
         num_predict:200,
         num_ctx:4096,
         top_p:0.8,
-        repeat_penalty:1.3
+        repeat_penalty:1.1
     }
 };
