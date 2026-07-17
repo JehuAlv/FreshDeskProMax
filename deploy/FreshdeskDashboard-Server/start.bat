@@ -5,8 +5,8 @@ title Freshdesk Dashboard - Starting...
 set "DIR=%~dp0"
 set "DIR=%DIR:~0,-1%"
 
-:: Start proxy with auto-restart watchdog
-start "" /min cmd /c "cd /d "%DIR%" && "%DIR%\watchdog.bat""
+:: Start proxy with auto-restart watchdog (hidden window)
+wscript "%DIR%\watchdog.vbs"
 
 :: Wait for proxy to be ready
 timeout /t 5 /nobreak >nul
