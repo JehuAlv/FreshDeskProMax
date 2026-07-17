@@ -317,7 +317,7 @@ var AIPipeline = (function() {
                 + 'NO HACER:\n'
                 + '- No repetir textualmente lo que dijo el cliente\n'
                 + '- No repetir datos del cliente (seriales, fechas, horas)\n'
-                + '- No inventar part numbers, versiones, costos ni tiempos\n'
+                + '- No inventar part numbers, versiones, costos, tiempos ni pasos técnicos específicos (ej: Customer Property, rutas de menú)\n'
                 + '- No mencionar cerrar/mantener ticket\n'
                 + '- No usar: "Estimado/a", "Le informo", "Buen día", "Espero que te encuentres bien", "No dudes en contactarnos", "cualquier duda", "Si necesitas más apoyo"'
                 + imgRule
@@ -330,7 +330,7 @@ var AIPipeline = (function() {
                 + 'DO NOT:\n'
                 + '- Do NOT repeat customer\'s words verbatim\n'
                 + '- Do NOT repeat customer data (serials, dates, times)\n'
-                + '- Do NOT invent part numbers, versions, costs, or timelines\n'
+                + '- Do NOT invent part numbers, versions, costs, timelines, or specific technical steps (e.g. Customer Property, menu paths)\n'
                 + '- Do NOT mention closing/keeping ticket\n'
                 + '- Do NOT use: "Dear", "I hope this email finds you well", "Please do not hesitate", "Thank you for reaching out", "any questions"'
                 + imgRule
@@ -370,12 +370,12 @@ var AIPipeline = (function() {
                 return 'Quote request. Acknowledge receipt. Say you will review the requirements. Do NOT list what they asked for.';
             case 'error_first':
                 if (analysis.hasImages)
-                    return 'Customer reported error with images you cannot see. Acknowledge. Ask for Issue Report and serial number. Offer remote session.';
+                    return 'Customer reported error with images you cannot see. Acknowledge the error. Ask for Issue Report and serial number so you can investigate.';
                 var askFor = [];
                 if (missing.indexOf('issue_report') >= 0) askFor.push('Issue Report (BRM > Help > Issue Report)');
                 if (missing.indexOf('serial_number') >= 0) askFor.push('machine serial number');
-                if (missing.indexOf('remote_access') >= 0) askFor.push('remote access credentials');
-                return 'Customer reported an error.' + (askFor.length ? ' Ask for: ' + askFor.join(', ') + '.' : ' Offer to investigate remotely.');
+                if (missing.indexOf('remote_access') >= 0) askFor.push('remote access credentials (TeamViewer/AnyDesk)');
+                return 'Customer reported an error. Acknowledge it.' + (askFor.length ? ' Ask for: ' + askFor.join(', ') + '. Do NOT invent diagnostic steps or menu paths.' : ' Offer to investigate remotely.');
             case 'persists':
                 return 'Problem persists. Ask for remote session to investigate directly.';
             case 'scheduling':
@@ -473,13 +473,16 @@ var AIPipeline = (function() {
             }
 
             if (similar.length > 0) {
-                parts.push('\n=== REAL TEAM REPLIES TO SIMILAR TICKETS (match this style exactly) ===');
+                parts.push('\n=== REAL TEAM REPLIES (match tone and length, NOT technical content) ===');
                 var shown = 0;
                 for (var s = 0; s < similar.length && shown < 5; s++) {
                     var ex = similar[s];
                     if (ex.quality < 1.0) continue;
-                    parts.push('\nCustomer: ' + ex.customer);
-                    parts.push(ex.agent + ' replied: ' + ex.reply);
+                    var cleanReply = ex.reply
+                        .replace(/Customer Property[^.;\n]*/gi, '[technical detail removed]')
+                        .replace(/(?:BRM|GUI|AOI|SPI)\s*>\s*\w[^.;\n]*/g, '[menu path removed]');
+                    parts.push('\nCustomer: ' + ex.customer.substring(0, 200));
+                    parts.push(ex.agent + ' replied: ' + cleanReply.substring(0, 300));
                     shown++;
                 }
             }
