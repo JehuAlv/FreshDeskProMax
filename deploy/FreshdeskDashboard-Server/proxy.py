@@ -349,6 +349,6 @@ class ThreadedServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 _kill_previous()
 threading.Thread(target=_preload_model, daemon=True).start()
-server = ThreadedServer(('127.0.0.1', PORT), ProxyHandler)
+server = ThreadedServer(('0.0.0.0', PORT), ProxyHandler)
 print('[proxy] Listening on port %d' % PORT)
 server.serve_forever()
