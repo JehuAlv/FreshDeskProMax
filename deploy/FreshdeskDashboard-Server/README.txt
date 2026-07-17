@@ -1,10 +1,11 @@
 FRESHDESK DASHBOARD - SERVER
 ============================
 
-FIRST TIME SETUP:
-1. Right-click "setup.bat" > Run as administrator
-2. Wait for Python, Ollama, dependencies, and model download (~4.7GB)
-3. Done! The dashboard URL will be shown
+INSTALLATION:
+1. Double-click "FreshdeskDashboard-vX.X.X.exe"
+2. Choose installation folder
+3. Wait for automatic setup (Python, Ollama, AI model, firewall, auto-start)
+4. Done! The dashboard URL will be shown
 
 DAILY USE:
 - Services start automatically when you log in
@@ -21,6 +22,6 @@ REQUIREMENTS:
 
 FEATURES:
 - Freshdesk ticket dashboard with smart reply suggestions
-- AI-powered reply generation (local Ollama - qwen2.5:7b)
-- Auto-recovery if Ollama crashes (CUDA/GPU errors)
+- AI-powered reply generation (local Ollama - qwen3.5:9b)
+- Auto-recovery if proxy or Ollama crashes
 - LAN accessible for all team members

@@ -1,19 +1,22 @@
 @echo off
 setlocal enabledelayedexpansion
 title Freshdesk Dashboard - Server Setup
-color 0A
 
-:: Check admin
+:: Auto-elevate to admin
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ============================================
-    echo   ERROR: Run this as Administrator
-    echo   Right-click setup.bat ^> Run as administrator
-    echo ============================================
-    pause
-    exit /b 1
+    echo Requesting administrator privileges...
+    if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" (
+        %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -Command "Start-Process cmd -ArgumentList '/c \"%~f0\"' -Verb RunAs -WorkingDirectory '%~dp0'"
+    ) else (
+        echo   Please right-click setup.bat and select "Run as administrator"
+        pause
+        exit /b 1
+    )
+    exit /b
 )
 
+color 0A
 echo ============================================
 echo   Freshdesk Dashboard - Server Setup
 echo ============================================
@@ -22,24 +25,30 @@ echo.
 :: Get current directory
 set "INSTALL_DIR=%~dp0"
 set "INSTALL_DIR=%INSTALL_DIR:~0,-1%"
+cd /d "%INSTALL_DIR%"
 
 :: 1. Check/Install Python
 echo [1/7] Checking Python...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo   Python not found. Downloading installer...
-    curl -L -o "%TEMP%\python-installer.exe" "https://www.python.org/ftp/python/3.13.3/python-3.13.3-amd64.exe"
+    call :download "https://www.python.org/ftp/python/3.13.3/python-3.13.3-amd64.exe" "%TEMP%\python-installer.exe"
     if not exist "%TEMP%\python-installer.exe" (
-        echo   ERROR: Failed to download Python
-        echo   Please install manually from https://www.python.org/downloads/
+        echo.
+        echo   ERROR: Automatic download failed.
+        echo   Please download Python manually:
+        echo   https://www.python.org/downloads/
+        echo   IMPORTANT: Check "Add Python to PATH" during installation
+        echo   Then run setup.bat again.
         pause
         exit /b 1
     )
     echo   Installing Python silently...
     start /wait "" "%TEMP%\python-installer.exe" /quiet InstallAllUsers=1 PrependPath=1 Include_pip=1
     del "%TEMP%\python-installer.exe" >nul 2>&1
-    :: Refresh PATH for this session
-    set "PATH=%PATH%;C:\Program Files\Python313;C:\Program Files\Python313\Scripts"
+    :: Refresh PATH from registry
+    for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "PATH=%%B"
+    for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "PATH=!PATH!;%%B"
     python --version >nul 2>&1
     if %errorlevel% neq 0 (
         echo   ERROR: Python installation failed
@@ -58,15 +67,18 @@ echo [2/7] Checking Ollama...
 where ollama >nul 2>&1
 if %errorlevel% neq 0 (
     echo   Ollama not found. Downloading installer...
-    curl -L -o "%TEMP%\OllamaSetup.exe" "https://ollama.com/download/OllamaSetup.exe"
+    call :download "https://ollama.com/download/OllamaSetup.exe" "%TEMP%\OllamaSetup.exe"
     if not exist "%TEMP%\OllamaSetup.exe" (
-        echo   ERROR: Failed to download Ollama
-        echo   Please install manually from https://ollama.com/download
+        echo.
+        echo   ERROR: Automatic download failed.
+        echo   Please download Ollama manually: https://ollama.com/download
+        echo   Then run setup.bat again.
         pause
         exit /b 1
     )
     echo   Installing Ollama silently...
-    start /wait "%TEMP%\OllamaSetup.exe" /VERYSILENT /NORESTART
+    start /wait "" "%TEMP%\OllamaSetup.exe" /VERYSILENT /NORESTART
+    del "%TEMP%\OllamaSetup.exe" >nul 2>&1
     echo   Ollama installed.
 ) else (
     echo   Ollama already installed.
@@ -90,9 +102,9 @@ echo   Dependencies installed.
 echo.
 
 :: 5. Pull AI model
-echo [5/7] Downloading AI model (qwen2.5:7b ~4.7GB)...
+echo [5/7] Downloading AI model (qwen3.5:9b ~6GB)...
 echo   This may take several minutes on first run...
-"%LOCALAPPDATA%\Programs\Ollama\ollama.exe" pull qwen2.5:7b
+"%LOCALAPPDATA%\Programs\Ollama\ollama.exe" pull qwen3.5:9b
 echo.
 
 :: 6. Firewall rules
@@ -132,3 +144,60 @@ echo   Other PCs on the network can also access this URL.
 echo   Services will auto-start when this PC boots.
 echo.
 pause
+exit /b
+
+:: ============================================
+:: Download function - tries multiple methods
+:: Usage: call :download "URL" "FILE"
+:: ============================================
+:download
+set "DL_URL=%~1"
+set "DL_FILE=%~2"
+if exist "%DL_FILE%" del "%DL_FILE%" >nul 2>&1
+
+:: Method 1: certutil (uses CryptoAPI/Schannel, follows IE TLS settings)
+echo   Trying certutil...
+certutil -urlcache -split -f "%DL_URL%" "%DL_FILE%" >nul 2>&1
+if exist "%DL_FILE%" (
+    echo   Download OK.
+    exit /b 0
+)
+
+:: Method 2: PowerShell with TLS 1.2
+if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" (
+    echo   Trying PowerShell...
+    %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%DL_URL%', '%DL_FILE%')" >nul 2>&1
+    if exist "%DL_FILE%" (
+        echo   Download OK.
+        exit /b 0
+    )
+)
+
+:: Method 3: bitsadmin
+echo   Trying bitsadmin...
+bitsadmin /transfer "FDDownload" /priority high "%DL_URL%" "%DL_FILE%" >nul 2>&1
+if exist "%DL_FILE%" (
+    echo   Download OK.
+    exit /b 0
+)
+
+:: Method 4: VBScript (uses WinInet, same TLS as Internet Explorer)
+echo   Trying VBScript...
+echo Set x=CreateObject("MSXML2.XMLHTTP") > "%TEMP%\dl.vbs"
+echo x.Open "GET",WScript.Arguments(0),False >> "%TEMP%\dl.vbs"
+echo x.Send >> "%TEMP%\dl.vbs"
+echo Set s=CreateObject("ADODB.Stream") >> "%TEMP%\dl.vbs"
+echo s.Type=1 >> "%TEMP%\dl.vbs"
+echo s.Open >> "%TEMP%\dl.vbs"
+echo s.Write x.responseBody >> "%TEMP%\dl.vbs"
+echo s.SaveToFile WScript.Arguments(1),2 >> "%TEMP%\dl.vbs"
+echo s.Close >> "%TEMP%\dl.vbs"
+cscript //nologo "%TEMP%\dl.vbs" "%DL_URL%" "%DL_FILE%" >nul 2>&1
+del "%TEMP%\dl.vbs" >nul 2>&1
+if exist "%DL_FILE%" (
+    echo   Download OK.
+    exit /b 0
+)
+
+echo   All download methods failed.
+exit /b 1

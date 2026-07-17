@@ -6,6 +6,7 @@ __pycache__/
 Sharepoint/token_cache.json
 Sharepoint/.env
 deploy/*.zip
+deploy/releases/
 start-proxy.vbs
 stop-proxy.vbs
 
