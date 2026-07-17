@@ -207,7 +207,7 @@ var AIPipeline = (function() {
 
         if (/adjunto|attach|here.*is|te.*(comparto|envío)|sharing|sent.*you|envié|log|report|archivo/.test(t)) return 'files_shared';
 
-        if (/i will|voy a|let me|going to|haré|verificaré|get back|te confirmo|te aviso|will.*check|haven.t had/.test(t)) return 'will_check';
+        if (/i will|voy a|let me|going to|haré|verificaré|get back|te confirmo|te aviso|will.*check|will.*try|haven.t had|no.*hemos.*podido|aún no|todav[ií]a no/.test(t)) return 'will_check';
 
         if (/done|listo|installed|instalé|applied|apliqué|loaded|ya lo hice|already did/.test(t)) return 'completed_action';
 
@@ -387,7 +387,7 @@ var AIPipeline = (function() {
                     return 'Customer shared files about an error. Acknowledge the specific error. Say you will review.';
                 return 'Customer shared info/files. Acknowledge and say you will review.';
             case 'will_check':
-                return 'Customer says they will check/test later. Acknowledge briefly: you will wait for their update. Do NOT ask questions.';
+                return 'Customer says they will check/test/verify later. Reply in 1-2 sentences: acknowledge and say you await their update. Do NOT repeat what they said. Do NOT ask questions.';
             case 'completed_action':
                 return 'Customer completed a requested action. Ask if everything is working properly now.';
             case 'status_request':
@@ -405,7 +405,7 @@ var AIPipeline = (function() {
                     return 'Customer shared requirements/specs. Acknowledge receipt. Confirm you will review with the team. Do NOT invent details.';
                 if (isFirst && analysis.hasImages)
                     return 'Customer sent images you cannot see. Acknowledge. Ask what the images show or offer remote session.';
-                return 'Read the customer message carefully and respond to their specific request. If unclear, ask ONE specific question.';
+                return 'Respond to the customer request. If unclear, ask ONE specific question (serial number, OR remote access, OR logs). Do NOT restate what they told you.';
         }
     }
 
@@ -625,7 +625,7 @@ var AIPipeline = (function() {
 
         var bodyCheck = t.replace(hi + ',', '').replace(bye, '').replace(/\s+/g, '');
         if (bodyCheck.length < 5) {
-            t = hi + ',\n\n' + (esL ? 'Recibido, lo verifico y te confirmo.' : 'Received, let me check and confirm.') + '\n\n' + bye;
+            t = hi + ',\n\n' + (esL ? 'Recibido, lo reviso y te doy seguimiento.' : 'Received, let me check and follow up.') + '\n\n' + bye;
             issues.push('empty_body');
         }
 
@@ -634,8 +634,9 @@ var AIPipeline = (function() {
         var cw = lastCustText.toLowerCase().replace(/[^a-záéíóúñü\s]/g, '').split(/\s+/).filter(function(w) { return w.length > 4; });
         if (cw.length > 0) {
             var hits = cw.filter(function(w) { return body.indexOf(w) !== -1; }).length;
-            if (hits / cw.length > 0.6) {
-                t = hi + ',\n\n' + (esL ? 'Recibido, lo verifico y te confirmo.' : 'Received, let me check and confirm.') + '\n\n' + bye;
+            var parrotThreshold = cw.length < 5 ? 0.80 : (cw.length < 10 ? 0.55 : 0.45);
+            if (hits / cw.length > parrotThreshold) {
+                t = hi + ',\n\n' + (esL ? 'Recibido, lo reviso y te doy seguimiento.' : 'Received, let me check and follow up.') + '\n\n' + bye;
                 issues.push('parrot');
             }
         }
@@ -658,8 +659,15 @@ var AIPipeline = (function() {
                 t = t.split(dates[di2]).join('');
             }
         }
+        var datesSp = lastCustText.match(/\d{1,2}\s+de\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/gi);
+        if (datesSp) {
+            for (var ds = 0; ds < datesSp.length; ds++) {
+                t = t.split(datesSp[ds]).join('');
+            }
+        }
 
         t = t.replace(/\b(?:close|keep|closing)\s+this\s+ticket\b[^.\n]*/gi, '');
+        t = t.replace(/\b(?:cerrar|mantener|cierre)\s+(?:este|el)\s+ticket\b[^.\n]*/gi, '');
         t = t.replace(/\bno dudes en\b[^.\n]*/gi, '');
         t = t.replace(/\b(?:do not|don'?t)\s+hesitate\b[^.\n]*/gi, '');
         t = t.replace(/\bif you need (?:further|any)\s+(?:assistance|help)\b[^.\n]*/gi, '');
