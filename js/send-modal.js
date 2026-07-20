@@ -190,7 +190,7 @@ async function confirmSendReply(){
                 try{if(D._cacheNew)delete D._cacheNew[D.cur.id];localStorage.setItem('fd_cache_new',JSON.stringify(D._cacheNew||{}))}catch(e){}
             }
             applyFilter();
-            setTimeout(()=>{closeSendModal();sel(D.cur.id)},1200);
+            setTimeout(()=>{closeSendModal();delete _selCache[D.cur.id];sel(D.cur.id)},1200);
         }
     }catch(e){
         statusEl.className='send-modal-status err';
