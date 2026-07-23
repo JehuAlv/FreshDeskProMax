@@ -15,7 +15,7 @@ function prefetch(id){
     }).catch(function(){delete _prefetching[id]});
 }
 async function sel(id){
-    _memoKey='';_memoMsgs=null;_memoAna=null;_replyCache={};
+    _memoKey='';_memoMsgs=null;_memoAna=null;_replyCache={};_summaryCache={};
     var cached=_selCache[id];
     if(cached&&Date.now()-cached.ts<900000){
         D.cur=cached.t;D.cvs=cached.cvs;window._langOverride=null;rlActive(id);renderRight();
@@ -88,8 +88,7 @@ function renderRight(){
     document.getElementById('tab-bar').innerHTML=
         '<div class="tab-row">'+
         '<button class="on" onclick="tab(this,0)">Quick Reply</button>'+
-        '<button onclick="tab(this,1)">Summary</button>'+
-        '<button onclick="tab(this,2)">Thread <span class="bdg">'+c.length+'</span></button>'+
+        '<button onclick="tab(this,1)">Thread <span class="bdg">'+c.length+'</span></button>'+
         '</div>';
 
     showPane(0);
@@ -105,42 +104,101 @@ function showPane(i){
     if(i===0){
         var k=t.id;
         if(!_replyCache[k])_replyCache[k]=replyHTML(t,c);
-        el.innerHTML='<div class="rpad">'+_replyCache[k]+'</div>';
+        el.innerHTML='<div class="reply-layout"><div class="reply-main">'+_replyCache[k]+'</div><div class="reply-sidebar">'+sidebarSummaryHTML(t,c)+'</div></div>';
     }
-    else if(i===1)el.innerHTML='<div class="rpad">'+summaryHTML(t,c)+'</div>';
     else el.innerHTML='<div class="rpad">'+threadHTML(t,c)+'</div>';
     document.getElementById('scroll-area').scrollTop=0;
 }
 
-/* =============== SUMMARY =============== */
-function summaryHTML(t,c){
+var _summaryCache={};
+
+function sidebarSummaryHTML(t,c){
     const m=memoMsgs(t,c),a=memoAna(t,c);
     let h='';
 
-    h+='<div class="action-strip act-'+a.sit+'"><span class="emoji">'+a.ico+'</span><span class="desc">'+a.lbl+'</span><span class="when">'+(a.stale>0?a.stale+'d ago':'today')+'</span></div>';
+    h+='<div class="sb-section"><div class="sb-sit act-'+a.sit+'"><span class="emoji">'+a.ico+'</span><span>'+a.lbl+'</span></div>'
+      +'<div class="sb-stats">'
+      +'<div class="sb-stat"><div class="n">'+a.tot+'</div><div class="l">Messages</div></div>'
+      +'<div class="sb-stat"><div class="n">'+a.age+'d</div><div class="l">Age</div></div>'
+      +'<div class="sb-stat"><div class="n">'+a.nc+'</div><div class="l">Customer</div></div>'
+      +'<div class="sb-stat"><div class="n">'+a.na+'</div><div class="l">Agent</div></div>'
+      +'</div></div>';
 
-    h+='<div class="grid-stats"><div class="gs"><div class="n">'+a.tot+'</div><div class="l">Messages</div></div><div class="gs"><div class="n">'+a.nc+'</div><div class="l">Customer</div></div><div class="gs"><div class="n">'+a.na+'</div><div class="l">Agent</div></div><div class="gs"><div class="n">'+a.age+'d</div><div class="l">Age</div></div></div>';
-
-    if(a.steps.length)h+='<div class="steps-box"><h2>What to Do Next</h2><ul>'+a.steps.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>';
-
-    const fc=m.find(x=>x.f==='Customer');
-    if(fc)h+='<div class="panel"><h2>Original Issue</h2><p>'+esc(trunc(fc.t,600))+'</p></div>';
-
-    const pub=m.filter(x=>x.f!=='Note').slice(-4);
-    if(pub.length){
-        h+='<div class="panel"><h2>Where You Left Off</h2>';
-        pub.forEach(x=>{
-            const cl=x.f==='Agent'?'agent':'customer';
-            h+='<div class="exch-bubble '+cl+'"><div class="label">'+x.f+' — '+new Date(x.d).toLocaleDateString()+'</div>'+esc(trunc(x.t,350))+'</div>';
-        });h+='</div>';
+    if(a.topics.length){
+        h+='<div class="sb-section"><div class="sb-title">Topics</div>'
+          +'<div class="sb-topics">'+a.topics.map(function(x){return esc(x)}).join(' · ')+'</div></div>';
     }
 
-    if(a.topics.length)h+='<div class="panel"><h2>Topics</h2><div class="topic-list">'+a.topics.map(x=>'<span class="topic-pill">'+esc(x)+'</span>').join('')+'</div></div>';
-
-    h+='<div class="panel"><div class="tl-btn" onclick="const n=this.nextElementSibling;n.style.display=n.style.display===\'none\'?\'block\':\'none\'">&#9660; Full timeline ('+m.length+')</div><div style="display:none">';
-    m.forEach(x=>{h+='<div class="tl-entry"><span class="d">'+new Date(x.d).toLocaleDateString()+'</span><span class="w '+x.f.toLowerCase()+'">'+x.f+'</span><span class="t">'+esc(trunc(x.t,120))+'</span></div>'});
+    h+='<div class="sb-section"><div class="sb-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="#8b5cf6"><path d="M9.5 2l1.5 3.5L14.5 7l-3.5 1.5L9.5 12l-1.5-3.5L4.5 7l3.5-1.5zM19 11l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5L15 14.5l2.5-1zM9.5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>AI Summary</div>'
+      +'<div id="ai-summary" class="sb-original">';
+    if(_summaryCache[t.id]){
+        h+=esc(_summaryCache[t.id]);
+    }else{
+        h+='<span class="loading-msg" style="padding:8px;font-size:11px">Generating</span>';
+    }
     h+='</div></div>';
+
+    if(!_summaryCache[t.id]){
+        setTimeout(function(){generateSummary(t,c)},50);
+    }
+
     return h;
+}
+
+async function generateSummary(t,c){
+    const el=document.getElementById('ai-summary');
+    if(!el)return;
+    if(_summaryCache[t.id]){el.textContent=_summaryCache[t.id];return;}
+
+    const m=memoMsgs(t,c);
+    const lang=window._langOverride||detectLang(m,t.subject);
+    const thread=m.map(function(x){
+        return x.f+' ('+new Date(x.d).toLocaleDateString()+'): '+trunc(cleanEmailBody(x.t),300);
+    }).join('\n\n');
+
+    const sys=lang==='es'
+        ?'Resume hilos de soporte en 2-3 oraciones cortas. Solo el resumen, sin encabezados ni viñetas.'
+        :'Summarize support threads in 2-3 short sentences. Only the summary, no headers or bullets.';
+
+    const usr=lang==='es'
+        ?'Resume brevemente: problema, qué se hizo, estado actual.\n\nTicket #'+t.id+' — '+t.subject+'\n\n'+thread
+        :'Briefly summarize: issue, what was done, current status.\n\nTicket #'+t.id+' — '+t.subject+'\n\n'+thread;
+
+    var model=window._ollamaModel||'qwen3.5:9b';
+    try{
+        const resp=await fetch('/ollama',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({model:model,messages:[{role:'system',content:sys},{role:'user',content:usr}],stream:true,think:false,keep_alive:-1,options:{temperature:0.3,num_predict:120,num_ctx:4096,top_p:0.8,repeat_penalty:1.3}})
+        });
+        if(!resp.ok)throw new Error('Ollama '+resp.status);
+        const reader=resp.body.getReader();
+        const dec=new TextDecoder();
+        let summary='',buf='';
+        while(true){
+            const{done,value}=await reader.read();
+            if(done)break;
+            buf+=dec.decode(value,{stream:true});
+            const lines=buf.split('\n');
+            buf=lines.pop();
+            for(const ln of lines){
+                if(!ln.trim())continue;
+                try{
+                    const chunk=JSON.parse(ln);
+                    if(chunk.message&&chunk.message.content){
+                        summary+=chunk.message.content;
+                        const cur=document.getElementById('ai-summary');
+                        if(cur)cur.textContent=summary;
+                    }
+                }catch(e){}
+            }
+        }
+        if(buf.trim()){try{const chunk=JSON.parse(buf);if(chunk.message&&chunk.message.content)summary+=chunk.message.content}catch(e){}}
+        _summaryCache[t.id]=summary;
+    }catch(e){
+        const cur=document.getElementById('ai-summary');
+        if(cur)cur.innerHTML='<span style="color:var(--g400);font-style:italic">'+(lang==='es'?'Ollama no disponible':'Ollama not available')+'</span>';
+    }
 }
 
 /* =============== THREAD =============== */

@@ -566,7 +566,7 @@ function replyHTML(t,c){
 
 function toggleLang(){
     const rc=window._replyCtx;if(!rc)return;
-    _replyCache={};
+    _replyCache={};_summaryCache={};
     const newLang=rc.lang==='es'?'en':'es';
     window._langOverride=newLang;
     showPane(0);
