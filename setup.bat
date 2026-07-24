@@ -97,7 +97,7 @@ echo.
 
 :: 4. Install Python dependencies
 echo [4/7] Installing Python dependencies...
-pip install -r "%INSTALL_DIR%\Sharepoint\requirements.txt" --quiet
+pip install -r "%INSTALL_DIR%\Sharepoint\requirements.txt" --quiet --no-warn-script-location
 echo   Dependencies installed.
 echo.
 
@@ -142,6 +142,9 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
 echo.
 echo   Other PCs on the network can also access this URL.
 echo   Services will auto-start when this PC boots.
+echo.
+echo   Opening dashboard in browser...
+start "" "http://localhost:8080"
 echo.
 pause
 exit /b
