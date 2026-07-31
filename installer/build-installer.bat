@@ -7,6 +7,9 @@ title Building FreshDesk Pro Max Installer...
 :: Output goes to deploy\, which is gitignored; ship it as a GitHub release asset.
 :: See README.md in this folder for how the chain fits together.
 
+:: Safe to double-click. release.bat sets FD_CHAINED=1 when it calls this script, which
+:: suppresses the pauses so the release does not stall waiting for a keypress.
+
 :: BUILD = this folder (build-time tools). DIR = repo root (the app payload).
 set "BUILD=%~dp0"
 set "BUILD=%BUILD:~0,-1%"
@@ -31,25 +34,25 @@ echo.
 :: ── Prerequisites ──
 if not exist "%SEVENZIP%" (
     echo ERROR: 7-Zip not found at %SEVENZIP%
-    pause
+    if not defined FD_CHAINED pause
     exit /b 1
 )
 if not exist "%SystemRoot%\System32\iexpress.exe" (
     echo ERROR: iexpress.exe not found
-    pause
+    if not defined FD_CHAINED pause
     exit /b 1
 )
 for %%f in (bootstrap.cmd launcher.vbs build-sed.py) do (
     if not exist "%BUILD%\%%f" (
         echo ERROR: required build file missing: installer\%%f
-        pause
+        if not defined FD_CHAINED pause
         exit /b 1
     )
 )
 for %%f in (install.cmd setup.hta) do (
     if not exist "%DIR%\%%f" (
         echo ERROR: required payload file missing: %%f
-        pause
+        if not defined FD_CHAINED pause
         exit /b 1
     )
 )
@@ -97,7 +100,7 @@ if defined LEAK (
     echo   ERROR: credential file found in payload - build aborted.
     dir /s /b "%STAGE%\content" | findstr /i "\.env token_cache"
     rd /s /q "%STAGE%"
-    pause
+    if not defined FD_CHAINED pause
     exit /b 1
 )
 echo   Payload clean.
@@ -110,7 +113,7 @@ popd
 if not exist "%STAGE%\FreshdeskDashboard.zip" (
     echo ERROR: zip creation failed
     rd /s /q "%STAGE%"
-    pause
+    if not defined FD_CHAINED pause
     exit /b 1
 )
 
@@ -126,7 +129,7 @@ python "%BUILD%\build-sed.py" "%STAGE%" "%OUTPUT%" "%VERSION%"
 if not exist "%STAGE%\installer.sed" (
     echo ERROR: SED generation failed
     rd /s /q "%STAGE%"
-    pause
+    if not defined FD_CHAINED pause
     exit /b 1
 )
 
@@ -153,6 +156,12 @@ if exist "%OUTPUT%" (
     for %%A in ("%OUTPUT%") do echo     Size: %%~zA bytes
     echo   ============================================
     echo.
+    if not defined FD_CHAINED (
+        echo   Not published yet. To publish it as a GitHub release, run:
+        echo     installer\release.bat %VERSION%
+        echo.
+        pause
+    )
 ) else (
     echo.
     echo   ERROR: installer was not created.
@@ -160,5 +169,6 @@ if exist "%OUTPUT%" (
     echo   Re-run without /Q to see the IExpress error:
     echo     pushd "%STAGE%" ^&^& iexpress /N installer.sed
     echo.
+    if not defined FD_CHAINED pause
     exit /b 1
 )
