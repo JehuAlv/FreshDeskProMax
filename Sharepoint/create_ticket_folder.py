@@ -12,10 +12,22 @@ from dotenv import load_dotenv
 # Unbuffered print so output is visible immediately in background/piped runs
 print = functools.partial(print, flush=True)
 
+# Ticket subjects are often non-latin1 (CJK); the Windows console defaults to cp1252
+# and would raise UnicodeEncodeError mid-run.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 SCOPES = ["Files.ReadWrite", "User.Read"]
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN_CACHE_FILE = os.path.join(SCRIPT_DIR, "token_cache.json")
+
+
+class ConfigError(Exception):
+    """Raised when required settings are missing, so callers (e.g. the proxy) can report it."""
 
 
 def load_config(dry_run=False):
@@ -44,9 +56,10 @@ def load_config(dry_run=False):
         required += ["azure_client_id", "azure_tenant_id", "onedrive_folder_url"]
     missing = [k.upper() for k in required if not config[k]]
     if missing:
-        print(f"ERROR: Missing required environment variables: {', '.join(missing)}")
-        print("Copy .env.example to .env and fill in the values.")
-        sys.exit(1)
+        raise ConfigError(
+            f"Missing required environment variables: {', '.join(missing)}. "
+            f"Copy .env.example to .env in {SCRIPT_DIR} and fill in the values."
+        )
     return config
 
 
@@ -165,7 +178,9 @@ def save_cache(cache):
             f.write(cache.serialize())
 
 
-def get_graph_token(config):
+def get_graph_token(config, interactive=True):
+    """Get a Graph token. With interactive=False, never starts a device flow —
+    callers without a console (the proxy) get a ConfigError instead of hanging."""
     app, cache = get_msal_app(config)
 
     accounts = app.get_accounts()
@@ -175,17 +190,26 @@ def get_graph_token(config):
             save_cache(cache)
             return result["access_token"]
 
+    if not interactive:
+        raise ConfigError(
+            "Not signed in to Microsoft Graph. Run "
+            f'"python \\"{os.path.join(SCRIPT_DIR, "create_ticket_folder.py")}\\" <ticket_id>" '
+            "once in a terminal to complete the device-code sign-in, then retry."
+        )
+
     print("\nAuthentication required.")
     flow = app.initiate_device_flow(scopes=SCOPES)
     if "user_code" not in flow:
-        print(f"ERROR: Could not create device flow: {flow.get('error_description', 'unknown error')}")
-        sys.exit(1)
+        raise ConfigError(
+            f"Could not create device flow: {flow.get('error_description', 'unknown error')}"
+        )
     print(flow["message"])
     result = app.acquire_token_by_device_flow(flow)
 
     if "access_token" not in result:
-        print(f"ERROR: Authentication failed: {result.get('error_description', result.get('error', 'unknown'))}")
-        sys.exit(1)
+        raise ConfigError(
+            f"Authentication failed: {result.get('error_description', result.get('error', 'unknown'))}"
+        )
 
     save_cache(cache)
     return result["access_token"]
@@ -302,7 +326,11 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Show emails and exit without creating folder or sharing")
     args = parser.parse_args()
 
-    config = load_config(dry_run=args.dry_run)
+    try:
+        config = load_config(dry_run=args.dry_run)
+    except ConfigError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
     ticket_id = args.ticket_id
 
     print(f"Fetching ticket #{ticket_id} from FreshDesk...")
@@ -331,7 +359,11 @@ def main():
         return
 
     print("\nAuthenticating with Microsoft Graph...")
-    token = get_graph_token(config)
+    try:
+        token = get_graph_token(config)
+    except ConfigError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
 
     print("\nResolving target folder...")
     try:

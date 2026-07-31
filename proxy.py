@@ -32,7 +32,9 @@ def _get_sp_token():
     global _sp_token
     with _sp_lock:
         config = _get_sp_config()
-        _sp_token = sp.get_graph_token(config)
+        # interactive=False: the proxy runs in a hidden window, so a device-code
+        # prompt would be invisible and block forever. Sign in via the CLI once.
+        _sp_token = sp.get_graph_token(config, interactive=False)
     return _sp_token
 
 def _get_sp_base_folder(token):
