@@ -5,9 +5,12 @@ title Building FreshDesk Pro Max Installer...
 :: Builds a single double-click installer .exe via IExpress:
 ::   installer.exe -> launcher.vbs -> bootstrap.cmd -> install.cmd (elevated) -> setup.hta
 :: Output goes to deploy\, which is gitignored; ship it as a GitHub release asset.
+:: See README.md in this folder for how the chain fits together.
 
-set "DIR=%~dp0"
-set "DIR=%DIR:~0,-1%"
+:: BUILD = this folder (build-time tools). DIR = repo root (the app payload).
+set "BUILD=%~dp0"
+set "BUILD=%BUILD:~0,-1%"
+for %%i in ("%BUILD%\..") do set "DIR=%%~fi"
 set "SEVENZIP=C:\Program Files\7-Zip\7z.exe"
 set "STAGE=%TEMP%\fd-build"
 set "DEPLOY=%DIR%\deploy"
@@ -36,9 +39,16 @@ if not exist "%SystemRoot%\System32\iexpress.exe" (
     pause
     exit /b 1
 )
-for %%f in (bootstrap.cmd launcher.vbs install.cmd setup.hta build-sed.py) do (
+for %%f in (bootstrap.cmd launcher.vbs build-sed.py) do (
+    if not exist "%BUILD%\%%f" (
+        echo ERROR: required build file missing: installer\%%f
+        pause
+        exit /b 1
+    )
+)
+for %%f in (install.cmd setup.hta) do (
     if not exist "%DIR%\%%f" (
-        echo ERROR: required file missing: %%f
+        echo ERROR: required payload file missing: %%f
         pause
         exit /b 1
     )
@@ -105,12 +115,14 @@ if not exist "%STAGE%\FreshdeskDashboard.zip" (
 )
 
 :: ── Bootstrap + launcher alongside the zip ──
-copy /y "%DIR%\bootstrap.cmd" "%STAGE%\" >nul
-copy /y "%DIR%\launcher.vbs" "%STAGE%\" >nul
+:: These two are NOT part of the payload zip. IExpress packs them next to it and
+:: runs launcher.vbs, which is what unpacks the zip and starts the install.
+copy /y "%BUILD%\bootstrap.cmd" "%STAGE%\" >nul
+copy /y "%BUILD%\launcher.vbs" "%STAGE%\" >nul
 
 :: ── SED for IExpress ──
 echo   Generating SED...
-python "%DIR%\build-sed.py" "%STAGE%" "%OUTPUT%" "%VERSION%"
+python "%BUILD%\build-sed.py" "%STAGE%" "%OUTPUT%" "%VERSION%"
 if not exist "%STAGE%\installer.sed" (
     echo ERROR: SED generation failed
     rd /s /q "%STAGE%"

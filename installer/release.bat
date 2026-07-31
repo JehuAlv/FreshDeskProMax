@@ -5,15 +5,17 @@ title FreshDesk Pro Max - Release
 :: One step for a stable release: build the versioned installer and publish it
 :: as a GitHub release asset, so users only download and double-click.
 ::
-:: Usage:
-::   release.bat            -> uses the latest git tag
-::   release.bat v1.4.0     -> creates that tag on HEAD first, then builds
+:: Usage (from anywhere):
+::   installer\release.bat            -> uses the latest git tag
+::   installer\release.bat v1.4.0     -> creates that tag on HEAD first, then builds
 ::
 :: Tag the commit BEFORE building: build-installer.bat takes the version from
 :: `git describe --tags`, so an untagged bump would ship the previous version.
 
-set "DIR=%~dp0"
-set "DIR=%DIR:~0,-1%"
+:: BUILD = this folder. DIR = repo root.
+set "BUILD=%~dp0"
+set "BUILD=%BUILD:~0,-1%"
+for %%i in ("%BUILD%\..") do set "DIR=%%~fi"
 
 if not "%~1"=="" (
     git -C "%DIR%" rev-parse "%~1" >nul 2>&1
@@ -36,7 +38,7 @@ if not "%~1"=="" (
 echo   Releasing %VERSION%
 echo.
 
-call "%DIR%\build-installer.bat" || exit /b 1
+call "%BUILD%\build-installer.bat" || exit /b 1
 
 set "ASSET=%DIR%\deploy\FreshdeskDashboard-%VERSION%.exe"
 if not exist "%ASSET%" (
@@ -49,7 +51,7 @@ git -C "%DIR%" push origin HEAD || exit /b 1
 git -C "%DIR%" push origin "%VERSION%" || exit /b 1
 
 echo   Publishing release asset...
-python "%DIR%\publish-release.py" "%VERSION%" "%ASSET%" || exit /b 1
+python "%BUILD%\publish-release.py" "%VERSION%" "%ASSET%" || exit /b 1
 
 echo.
 echo   Done: %VERSION% released.
