@@ -7,4 +7,3 @@ Sharepoint/token_cache.json
 Sharepoint/.env
 deploy/
 scripts/
-build-installer.bat

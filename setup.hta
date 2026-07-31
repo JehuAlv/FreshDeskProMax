@@ -711,10 +711,51 @@ function step6() {
     log("Step 7: Startup");
     setStep(6, "active", "Creating service...");
     setTimeout(function() {
-        run('cmd /c schtasks /delete /tn "FreshdeskDashboard" /f >nul 2>&1');
-        run('cmd /c schtasks /create /tn "FreshdeskDashboard" /tr "\\"' + installDir + '\\start.bat\\"" /sc onlogon /rl highest /f');
-        log("Scheduled task created");
-        setStep(6, "done", "Auto-start enabled");
+        var ok = false;
+
+        // Primary: per-user Startup shortcut. Needs no elevation, so it works
+        // even when the HTA is launched by double-click instead of the installer.
+        try {
+            var startupDir = shell.SpecialFolders("Startup");
+            var lnk = shell.CreateShortcut(startupDir + "\\FreshDeskProMax.lnk");
+            lnk.TargetPath = "C:\\Windows\\System32\\wscript.exe";
+            lnk.Arguments = '"' + installDir + '\\watchdog.vbs"';
+            lnk.WorkingDirectory = installDir;
+            lnk.Description = "FreshDesk Pro Max - proxy watchdog";
+            lnk.WindowStyle = 7;
+            lnk.Save();
+            log("Startup shortcut created: " + startupDir + "\\FreshDeskProMax.lnk");
+            ok = true;
+        } catch(e) {
+            log("Startup shortcut failed: " + e.message);
+        }
+
+        // Secondary: scheduled task. /rl highest needs elevation, so check the
+        // exit code and retry unelevated rather than assuming success. /f
+        // overwrites in place -- deleting first meant a failed create left no
+        // task at all, while the log still claimed one had been created.
+        var tn = '"FreshDeskProMax"';
+        var tr = '"\\"' + installDir + '\\start.bat\\""';
+        var rc = run('cmd /c schtasks /create /tn ' + tn + ' /tr ' + tr + ' /sc onlogon /rl highest /f >nul 2>&1');
+        if (rc != 0) {
+            log("schtasks with /rl highest failed (rc=" + rc + "), retrying unelevated");
+            rc = run('cmd /c schtasks /create /tn ' + tn + ' /tr ' + tr + ' /sc onlogon /f >nul 2>&1');
+        }
+        if (rc == 0) {
+            log("Scheduled task created (onlogon)");
+            ok = true;
+            // Drop the legacy task name so the proxy is not started twice.
+            run('cmd /c schtasks /delete /tn "FreshdeskDashboard" /f >nul 2>&1');
+        } else {
+            log("Scheduled task creation failed (rc=" + rc + ")");
+        }
+
+        if (ok) {
+            setStep(6, "done", "Auto-start enabled");
+        } else {
+            addError("Startup", "Could not enable auto-start: no Startup shortcut and no scheduled task");
+            setStep(6, "done", "Auto-start unavailable");
+        }
         setTimeout(stepFinish, 50);
     }, 50);
 }

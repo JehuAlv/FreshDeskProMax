@@ -117,11 +117,45 @@ echo   Port 8080 (proxy) - opened
 echo   Port 11434 (Ollama) - opened
 echo.
 
-:: 7. Create scheduled task for auto-start
-echo [7/7] Creating auto-start task...
-schtasks /delete /tn "FreshdeskDashboard" /f >nul 2>&1
-schtasks /create /tn "FreshdeskDashboard" /tr "\"%INSTALL_DIR%\start.bat\"" /sc onlogon /rl highest /f >nul
-echo   Auto-start on login configured.
+:: 7. Configure auto-start on login
+echo [7/7] Configuring auto-start...
+set "AUTOSTART_OK="
+
+:: Primary: per-user Startup shortcut. Needs no elevation.
+set "STARTUP_LNK=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\FreshDeskProMax.lnk"
+> "%TEMP%\fd-lnk.vbs" echo Set w=CreateObject("WScript.Shell")
+>> "%TEMP%\fd-lnk.vbs" echo Set s=w.CreateShortcut("%STARTUP_LNK%")
+>> "%TEMP%\fd-lnk.vbs" echo s.TargetPath="C:\Windows\System32\wscript.exe"
+>> "%TEMP%\fd-lnk.vbs" echo s.Arguments="""%INSTALL_DIR%\watchdog.vbs"""
+>> "%TEMP%\fd-lnk.vbs" echo s.WorkingDirectory="%INSTALL_DIR%"
+>> "%TEMP%\fd-lnk.vbs" echo s.WindowStyle=7
+>> "%TEMP%\fd-lnk.vbs" echo s.Save
+cscript //nologo "%TEMP%\fd-lnk.vbs" >nul 2>&1
+del "%TEMP%\fd-lnk.vbs" >nul 2>&1
+if exist "%STARTUP_LNK%" (
+    set "AUTOSTART_OK=1"
+    echo   Startup shortcut created.
+)
+
+:: Secondary: scheduled task. /rl highest needs elevation, so check the exit
+:: code and retry unelevated. /f overwrites in place -- deleting first meant a
+:: failed create silently left no task at all.
+schtasks /create /tn "FreshDeskProMax" /tr "\"%INSTALL_DIR%\start.bat\"" /sc onlogon /rl highest /f >nul 2>&1
+if errorlevel 1 (
+    echo   Elevated task creation failed, retrying unelevated...
+    schtasks /create /tn "FreshDeskProMax" /tr "\"%INSTALL_DIR%\start.bat\"" /sc onlogon /f >nul 2>&1
+)
+if not errorlevel 1 (
+    set "AUTOSTART_OK=1"
+    echo   Scheduled task created.
+    schtasks /delete /tn "FreshdeskDashboard" /f >nul 2>&1
+)
+
+if defined AUTOSTART_OK (
+    echo   Auto-start on login configured.
+) else (
+    echo   WARNING: could not configure auto-start.
+)
 echo.
 
 :: Start services now
