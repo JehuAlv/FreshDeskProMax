@@ -17,6 +17,17 @@ set "BUILD=%~dp0"
 set "BUILD=%BUILD:~0,-1%"
 for %%i in ("%BUILD%\..") do set "DIR=%%~fi"
 
+:: Refuse to release a dirty tree. build-installer.bat stages the payload from the
+:: working tree, not from git, so uncommitted or untracked files would ship inside
+:: the .exe while the tag points at a commit that does not contain them.
+set "DIRTY="
+for /f "delims=" %%s in ('git -C "%DIR%" status --porcelain 2^>nul') do set "DIRTY=1"
+if defined DIRTY (
+    echo   ERROR: working tree is not clean. Commit or stash first:
+    git -C "%DIR%" status --short
+    exit /b 1
+)
+
 if not "%~1"=="" (
     git -C "%DIR%" rev-parse "%~1" >nul 2>&1
     if errorlevel 1 (
