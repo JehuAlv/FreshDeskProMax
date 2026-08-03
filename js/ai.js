@@ -36,6 +36,10 @@ async function tryOllama(sys,usr,analysis){
     return{reply,provider:'Ollama ('+model+')'};
 }
 
+// Any phrasing that means "send us files" must carry the SharePoint link,
+// not just the literal words "issue report" or "sharepoint".
+const SP_NEEDS_LINK_RX=/issue.?report|sharepoint|\blogs?\b|registro|reporte.*m[áa]quina|hacer llegar|subir.*archivo|sube.*archivo|compartir.*archivo|upload.*(file|to)|send.*(us|me).*(file|report|log)/i;
+
 async function ensureSPFolder(){
     const t=D.cur;if(!t)return null;
     let link=getSPLink(t.id);
@@ -82,17 +86,25 @@ async function generateAI(provider,extraCtx){
 
     if(result){
         let reply=result.reply;
-        const replyNeedsLink=/issue.?report|sharepoint|subir.*archivo|upload.*file|sube.*los.*archivo|upload.*to/i.test(reply);
-        if(replyNeedsLink&&!spLink){
-            out.innerHTML='<div class="loading-msg">'+(esL?'Creando carpeta SharePoint...':'Creating SharePoint folder...')+'</div>';
-            spLink=await ensureSPFolder();
+        const needsLink=SP_NEEDS_LINK_RX.test(reply)||(!!extraCtx&&SP_NEEDS_LINK_RX.test(extraCtx));
+        if(needsLink){
+            if(!spLink){
+                out.innerHTML='<div class="loading-msg">'+(esL?'Creando carpeta SharePoint...':'Creating SharePoint folder...')+'</div>';
+                spLink=await ensureSPFolder();
+            }
             if(spLink){
-                const spLine=esL
-                    ?'\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink
-                    :'\n\nPlease upload the files to the following SharePoint folder:\n'+spLink;
-                const byeRx=new RegExp('(\\n\\n)('+rc.bye.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','i');
-                if(byeRx.test(reply))reply=reply.replace(byeRx,spLine+'$1$2');
-                else reply=reply.trimEnd()+spLine;
+                // Only the link from "Generate SharePoint Folder" is valid. The model
+                // sometimes invents one, and the validator strips underscores out of
+                // any URL it wrote, so drop every SharePoint URL that is not the real one.
+                reply=reply.replace(/https?:\/\/[^\s<>"')\]]*sharepoint[^\s<>"')\]]*/gi,m=>m===spLink?m:'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+                if(reply.indexOf(spLink)<0){
+                    const spLine=esL
+                        ?'\n\nPor favor sube los archivos al siguiente folder de SharePoint:\n'+spLink
+                        :'\n\nPlease upload the files to the following SharePoint folder:\n'+spLink;
+                    const byeRx=new RegExp('(\\n\\n)('+rc.bye.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','i');
+                    if(byeRx.test(reply))reply=reply.replace(byeRx,spLine+'$1$2');
+                    else reply=reply.trimEnd()+spLine;
+                }
             }
         }
         window._aiReply=reply;

@@ -449,14 +449,33 @@ var AIPipeline = (function() {
             currentDraft = el ? el.value.trim() : '';
         }
 
+        var hasDraft = !!(currentDraft || (typeof window !== 'undefined' && window._aiReply));
+        var isDraftEdit = !!(extraCtx && extraCtx.length > 0 && hasDraft);
+
         if (extraCtx && extraCtx.length > 0) {
-            if (currentDraft || (typeof window !== 'undefined' && window._aiReply)) {
+            if (isDraftEdit) {
                 var draft = currentDraft || window._aiReply;
-                parts.push('Edit my draft email. Apply the change described below.');
-                parts.push('Output ONLY plain text. No markdown. No ">" blockquotes.');
-                parts.push('End with "' + bye + '". Nothing after it.');
-                parts.push('\n[DRAFT]\n' + draft + '\n[/DRAFT]');
-                parts.push('\nChange: ' + extraCtx);
+                parts.push('=== MY INSTRUCTION (top priority - this is what the new email must say) ===');
+                parts.push(extraCtx);
+                parts.push('\nRewrite the email below so MY INSTRUCTION is its main message.');
+                parts.push('- The instruction OVERRIDES the draft. Delete every sentence of the draft that contradicts it.');
+                parts.push('- Do NOT just append a sentence to the draft. Rewrite the body so it reads as one coherent message.');
+                parts.push('- Keep only the parts of the draft that still make sense. 2-4 body sentences total.');
+                parts.push('- Plain text only. No markdown. No ">" blockquotes.');
+                parts.push('- Start with "' + hi + '," and end with "' + bye + '". Nothing after it.');
+                parts.push('\n[PREVIOUS DRAFT - reference for tone only]\n' + draft + '\n[/PREVIOUS DRAFT]');
+                parts.push('\n=== CUSTOMER MESSAGE (context) ===\n' + lastCustText);
+                // The full-context block below is skipped in draft-edit mode, so the
+                // SharePoint link and the canonical issue-report wording must be
+                // re-added here or the model has no link to include.
+                if (spLink) {
+                    parts.push('\nSHAREPOINT: ' + spLink + ' - if you ask for the Issue Report, logs or any file, include this exact link. NEVER invent a different link.');
+                }
+                if (/issue\s*report|\blogs?\b|registro|archivo|\bfile/i.test(extraCtx)) {
+                    parts.push(esL
+                        ? '\nRedaccion obligatoria al pedir el Issue Report: "Para comprender mejor el problema, nos podrias hacer llegar el issue report de la maquina' + (spLink ? ' a traves del siguiente folder de SharePoint?\n' + spLink : '?') + '"'
+                        : '\nRequired wording when asking for the Issue Report: "To better understand the issue, could you send us the machine issue report' + (spLink ? ' through the following SharePoint folder?\n' + spLink : '?') + '"');
+                }
             } else {
                 parts.push('INSTRUCTION: ' + extraCtx);
                 parts.push('\nCUSTOMER MESSAGE:\n' + lastCustText);
@@ -469,7 +488,7 @@ var AIPipeline = (function() {
             parts.push('\n=== CUSTOMER MESSAGE ===\n' + lastCustText);
         }
 
-        if (!extraCtx || !(currentDraft || (typeof window !== 'undefined' && window._aiReply))) {
+        if (!isDraftEdit) {
             if (analysis.entities.serials.length) {
                 parts.push('\nDetected serials: ' + analysis.entities.serials.join(', ') + ' — do NOT repeat these in your reply.');
             }
