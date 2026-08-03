@@ -113,19 +113,39 @@ var AIPipeline = (function() {
         var isFirst = !lastAgent;
         var isWaiting = ticketStatus === 3;
 
+        // Private notes are not part of the conversation with the customer, so the
+        // "who spoke last" question only looks at public messages.
+        var publicMsgs = messages.filter(function(m) { return m.f !== 'Note'; });
+        var lastPublic = publicMsgs.length ? publicMsgs[publicMsgs.length - 1] : null;
+        var agentLast = !!(lastAgent && lastPublic && lastPublic.f === 'Agent');
+
+        var daysSinceAgent = 0;
+        if (lastAgent && lastAgent.d) {
+            var agentTime = new Date(lastAgent.d).getTime();
+            if (!isNaN(agentTime)) {
+                daysSinceAgent = Math.max(0, Math.floor((Date.now() - agentTime) / 864e5));
+            }
+        }
+
         var entities = extractEntities(custText, subject);
-        var intent = classifyIntent(custLower, isFirst, entities);
-        var missing = detectMissing(messages, intent, entities);
+        // The customer message was already answered, so its intent must not drive the
+        // reply — but it still tells us what is missing from the thread.
+        var baseIntent = classifyIntent(custLower, isFirst, entities);
+        var intent = agentLast ? 'followup' : baseIntent;
+        var missing = detectMissing(messages, baseIntent, entities);
         var lang = detectLang(custText);
         var conversationPhase = getConversationPhase(messages);
 
         return {
             intent: intent,
+            baseIntent: baseIntent,
             entities: entities,
             missing: missing,
             lang: lang,
             isFirst: isFirst,
             isWaiting: isWaiting,
+            agentLast: agentLast,
+            daysSinceAgent: daysSinceAgent,
             lastCustText: custText,
             lastAgentText: lastAgent ? lastAgent.t : '',
             conversationPhase: conversationPhase,
@@ -273,6 +293,7 @@ var AIPipeline = (function() {
         opts = opts || {};
         var extraCtx = opts.extraCtx || '';
         var spLink = opts.spLink || '';
+        var summary = opts.summary || '';
 
         var rc = replyContext;
         var esL = analysis.lang === 'es';
@@ -290,11 +311,12 @@ var AIPipeline = (function() {
 
         var correctionHints = getCorrectionHints(analysis.lang, 3);
 
-        var sys = buildSystemPrompt(esL, hi, bye, analysis.hasImages, correctionHints);
+        var sys = buildSystemPrompt(esL, hi, bye, analysis.hasImages, correctionHints, analysis.agentLast);
 
         var usr = buildUserMessage(analysis, action, similar, rc, {
             extraCtx: extraCtx,
             spLink: spLink,
+            summary: summary,
             hi: hi,
             bye: bye,
             esL: esL,
@@ -303,17 +325,22 @@ var AIPipeline = (function() {
         return { sys: sys, usr: usr };
     }
 
-    function buildSystemPrompt(esL, hi, bye, hasImages, correctionHints) {
+    function buildSystemPrompt(esL, hi, bye, hasImages, correctionHints, isFollowUp) {
         var imgRule = hasImages ? (esL
             ? '\n- El cliente envió imágenes que NO puedes ver. NUNCA finjas verlas. Reconoce que las recibiste.'
             : '\n- Customer sent images you CANNOT see. NEVER pretend you can see them. Acknowledge receipt.')
             : '';
 
+        // A nudge on our own message needs to be shorter than a real reply.
+        var lenRule = isFollowUp
+            ? (esL ? '1-2 oraciones de cuerpo' : '1-2 body sentences')
+            : (esL ? '2-4 oraciones de cuerpo' : '2-4 body sentences');
+
         if (esL) {
             return 'Ingeniero de soporte MES, Koh Young (BRM para AOI/SPI).\n'
                 + 'REGLA #1: Sigue la instrucción ACTION al pie de la letra. Esa es tu tarea principal.\n'
                 + 'PROHIBIDO responder solo "lo reviso y te confirmo" o "lo verifico y te confirmo" — eso NO es una respuesta real.\n\n'
-                + 'Tuteo. 2-4 oraciones de cuerpo. Formato: ' + hi + ', → cuerpo → ' + bye + '\n'
+                + 'Tuteo. ' + lenRule + '. Formato: ' + hi + ', → cuerpo → ' + bye + '\n'
                 + 'NADA después de "' + bye + '". Sin firma.\n\n'
                 + 'Frases naturales: "Una disculpa por las molestias" · "me pudieras compartir" · "nos podrías compartir" · "Para comprender mejor el problema" · "quedo pendiente" · "De acuerdo" · "Perfecto" · "no hay problema"\n'
                 + 'No repetir datos del cliente. No inventar pasos técnicos. No mencionar cerrar ticket.\n'
@@ -324,7 +351,7 @@ var AIPipeline = (function() {
             return 'MES support engineer, Koh Young (BRM for AOI/SPI).\n'
                 + 'RULE #1: Follow the ACTION instruction exactly. That is your main task.\n'
                 + 'FORBIDDEN to reply only "let me check and confirm" or "received, I will review" — that is NOT a real response.\n\n'
-                + 'Casual tone. 2-4 body sentences. Format: ' + hi + ', → body → ' + bye + '\n'
+                + 'Casual tone. ' + lenRule + '. Format: ' + hi + ', → body → ' + bye + '\n'
                 + 'NOTHING after "' + bye + '". No signature.\n\n'
                 + 'Natural phrases: "I apologize for the inconvenience" · "could you share" · "To better understand the issue" · "let me know" · "Sounds good" · "No problem"\n'
                 + 'Do not repeat customer data. Do not invent technical steps. Do not mention closing ticket.\n'
@@ -344,18 +371,12 @@ var AIPipeline = (function() {
         var custLower = analysis.lastCustText.toLowerCase();
         var es = analysis.lang === 'es';
 
-        if (isWaiting && analysis.lastAgentText) {
-            if (/teamviewer|remote|session|sesión|conectar/.test(lastAgentText))
-                return es ? 'Seguimiento: pregunta si ya están disponibles para la sesión remota. Ejemplo: "Quedo pendiente a cualquier actualización."'
-                    : 'Follow up: ask if they are available for the remote session. Example: "Please let me know when you are available."';
-            if (/issue.*report|log|registro|reporte/.test(lastAgentText))
-                return es ? 'Seguimiento: pregunta si ya tienen el issue report. Ejemplo: "Me pudieras confirmar si ya cuentas con el issue report?"'
-                    : 'Follow up: ask if they gathered the logs/issue report. Example: "Could you confirm if you have the Issue Report ready?"';
-            if (/kbr|apply|install|aplicar|instalar/.test(lastAgentText))
-                return es ? 'Seguimiento: pregunta si aplicaron el KBR. Ejemplo: "Me pudieras confirmar si después de la actualización todo funciona como esperaban?"'
-                    : 'Follow up: ask if they applied the KBR. Example: "Could you confirm if everything is working as expected after the update?"';
-            return es ? 'Seguimiento: pregunta si aún necesitan ayuda. Ejemplo: "Quedo pendiente a cualquier actualización en este ticket."'
-                    : 'Follow up: ask if they still need help. Example: "Please let me know if you need any further assistance."';
+        // We spoke last, so there is nothing new to answer — the reply is a nudge on
+        // whatever our own last message left open. This used to key off isWaiting,
+        // which reads the UI tab filter and is therefore the same for every ticket in
+        // the tab; agentLast comes from the thread itself.
+        if (analysis.agentLast) {
+            return buildFollowUpAction(analysis, es);
         }
 
         switch (intent) {
@@ -433,6 +454,43 @@ var AIPipeline = (function() {
         }
     }
 
+    function buildFollowUpAction(analysis, es) {
+        var last = (analysis.lastAgentText || '').toLowerCase();
+        var days = analysis.daysSinceAgent || 0;
+        var when = es
+            ? (days <= 0 ? 'hoy mismo' : 'hace ' + days + (days === 1 ? ' dia' : ' dias'))
+            : (days <= 0 ? 'earlier today' : days + (days === 1 ? ' day' : ' days') + ' ago');
+
+        var head = es
+            ? 'SEGUIMIENTO. El ultimo mensaje del hilo es TUYO (' + when + ') y el cliente no ha contestado. NO respondas como si el cliente acabara de escribir. NO repitas tu mensaje anterior: retoma el pendiente en 1-2 oraciones.'
+            : 'FOLLOW-UP. The last message in the thread is YOURS (' + when + ') and the customer has not replied. Do NOT answer as if the customer just wrote. Do NOT repeat your previous message: pick up the open item in 1-2 sentences.';
+
+        var ask;
+        if (/issue.?report|\blogs?\b|registro|reporte/.test(last)) {
+            ask = es ? 'Pendiente: el issue report. Pregunta si ya lo pudieron generar. Ejemplo: "Me pudieras confirmar si ya cuentas con el issue report?"'
+                : 'Open item: the Issue Report. Ask whether they were able to generate it. Example: "Could you confirm if you have the Issue Report ready?"';
+        } else if (/kbr|instal|aplicar|apply|actualiz|update|versi[oó]n|version/.test(last)) {
+            ask = es ? 'Pendiente: aplicar el KBR/version que enviaste. Pregunta si ya lo aplicaron y si todo funciona. Ejemplo: "Me pudieras confirmar si despues de la actualizacion todo funciona como esperaban?"'
+                : 'Open item: applying the KBR/version you sent. Ask whether they applied it and if it works. Example: "Could you confirm if everything is working as expected after the update?"';
+        } else if (/teamviewer|anydesk|remot|sesi[oó]n|session|conectar|schedul|agendar|disponib|availab/.test(last)) {
+            ask = es ? 'Pendiente: la sesion remota. Pregunta si siguen disponibles y pide las credenciales de acceso remoto.'
+                : 'Open item: the remote session. Ask whether they are still available and request the remote access credentials.';
+        } else if (last.indexOf('?') >= 0) {
+            ask = es ? 'Pendiente: la pregunta que hiciste. Pregunta si tuvieron oportunidad de revisarla. Ejemplo: "Tuviste oportunidad de revisar lo que comentamos?"'
+                : 'Open item: the question you asked. Ask whether they had a chance to review it. Example: "Did you have a chance to review this?"';
+        } else {
+            ask = es ? 'No hay un pendiente claro. Pregunta si el problema sigue o si ya se resolvio. Ejemplo: "Quedo pendiente a cualquier actualizacion en este ticket."'
+                : 'No clear open item. Ask whether the issue is still happening or already resolved. Example: "Please let me know if there is any update on this."';
+        }
+
+        var tail = days >= 14
+            ? (es ? ' Ya pasaron ' + days + ' dias sin respuesta: se breve y cordial, y ofrece ayuda si aun lo necesitan. NO menciones cerrar el ticket.'
+                  : ' It has been ' + days + ' days with no reply: keep it short and friendly and offer help if they still need it. Do NOT mention closing the ticket.')
+            : '';
+
+        return head + ' ' + ask + tail;
+    }
+
     function buildUserMessage(analysis, action, similar, rc, opts) {
         var parts = [];
         var hi = opts.hi;
@@ -440,6 +498,7 @@ var AIPipeline = (function() {
         var esL = opts.esL;
         var extraCtx = opts.extraCtx;
         var spLink = opts.spLink;
+        var summary = opts.summary || '';
 
         var lastCustText = cleanEmailBody(analysis.lastCustText);
 
@@ -482,10 +541,16 @@ var AIPipeline = (function() {
             }
         } else {
             parts.push('=== ACTION (you MUST follow this) ===\n' + action);
-            if (analysis.isWaiting && analysis.lastAgentText) {
-                parts.push('\nYOUR LAST MESSAGE:\n' + cleanEmailBody(analysis.lastAgentText));
+            if (analysis.agentLast) {
+                if (analysis.lastAgentText) {
+                    parts.push('\n=== YOUR LAST MESSAGE (this is what you are following up on) ===\n' + cleanEmailBody(analysis.lastAgentText));
+                }
+                if (lastCustText) {
+                    parts.push('\nCUSTOMER MESSAGE BEFORE THAT (already answered - context only):\n' + lastCustText);
+                }
+            } else {
+                parts.push('\n=== CUSTOMER MESSAGE ===\n' + lastCustText);
             }
-            parts.push('\n=== CUSTOMER MESSAGE ===\n' + lastCustText);
         }
 
         if (!isDraftEdit) {
@@ -496,7 +561,15 @@ var AIPipeline = (function() {
             parts.push('\nTICKET: #' + (rc.t ? rc.t.id : '') + ' ' + analysis.subject);
             parts.push('Customer: ' + (rc.firstName || 'Customer'));
 
-            var recent = (rc.m || []).slice(-6);
+            if (summary) {
+                parts.push('\n=== TICKET SUMMARY (background - use it to stay consistent, do NOT quote it) ===\n' + summary);
+            }
+
+            // Private notes must never reach the prompt — the model would paraphrase
+            // internal remarks into a customer-facing email. The summary already
+            // carries the history, so fewer raw messages keep us inside num_ctx.
+            var publicThread = (rc.m || []).filter(function(m) { return m.f !== 'Note'; });
+            var recent = publicThread.slice(summary ? -4 : -6);
             if (recent.length > 1) {
                 parts.push('\nTHREAD (context only):');
                 for (var i = 0; i < recent.length; i++) {
@@ -534,6 +607,19 @@ var AIPipeline = (function() {
         parts.push('\nWrite ONLY the email. Start with "' + hi + '," end with "' + bye + '". Nothing else.');
 
         return parts.join('\n');
+    }
+
+    // The sidebar "AI Summary" is generated when the reply pane renders and cached by
+    // ticket id, so reuse it instead of making the model re-read the whole thread.
+    function getTicketSummary(rc) {
+        var summary = rc.summary || '';
+        if (!summary && typeof window !== 'undefined' && window._summaryCache && rc.t) {
+            summary = window._summaryCache[rc.t.id] || '';
+        }
+        summary = String(summary).replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/\s+/g, ' ').trim();
+        if (summary.length > 600) summary = summary.substring(0, 600).trim();
+        // A half-streamed summary is worse than none.
+        return summary.length < 40 ? '' : summary;
     }
 
     function cleanEmailBody(text) {
@@ -821,6 +907,7 @@ var AIPipeline = (function() {
             var prompt = buildPrompt(analysis, rc, {
                 extraCtx: extraCtx,
                 spLink: spLink,
+                summary: getTicketSummary(rc),
             });
 
             return {
