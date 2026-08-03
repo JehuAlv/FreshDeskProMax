@@ -1,22 +1,67 @@
 var _statsRun=0,_statsCache={ts:0,allT:null,myT:null,resp6:null},_statsMerged=new Set(),_statsNoResp=new Set();
-async function loadStats(){
+var STATS_CK='fd_resp7',STATS_LK='fd_statlist1',STATS_TTL=900000;
+
+// The per-ticket conversation scan is the expensive half of the stats. Two of its
+// three outcomes are permanent - a merged ticket never unmerges, and a public agent
+// reply never un-happens - so they are cached forever. "No response yet" is the only
+// verdict that can still flip, and it is stored as {n:updated_at} so the ticket is
+// re-scanned only once it actually moves. Before this it was re-scanned on every load.
+function statsReadCache(){
+    var c=null;
+    try{c=JSON.parse(localStorage.getItem(STATS_CK)||'null')}catch(e){}
+    if(c)return c;
+    var old={};
+    try{old=JSON.parse(localStorage.getItem('fd_resp6')||'{}')}catch(e){}
+    var out={};
+    Object.keys(old).forEach(function(k){
+        if(old[k]==='merged')out[k]='merged';
+        else if(old[k])out[k]=true;
+        else out[k]={n:''};
+    });
+    return out;
+}
+function statsSaveCache(c){try{localStorage.setItem(STATS_CK,JSON.stringify(c))}catch(e){}}
+
+// Only the fields the dashboard and the header counters actually read - keeping the
+// full ticket objects would blow past the localStorage quota.
+function statsSlim(t){
+    return{id:t.id,status:t.status,priority:t.priority,source:t.source,type:t.type,
+        responder_id:t.responder_id,tags:t.tags||[],created_at:t.created_at,
+        updated_at:t.updated_at,subject:t.subject||'',
+        custom_fields:{cf_rand61013:(t.custom_fields&&t.custom_fields.cf_rand61013)||null}};
+}
+function statsReadList(yr){
+    try{
+        var d=JSON.parse(localStorage.getItem(STATS_LK)||'null');
+        if(d&&d.yr===yr&&d.aid===D.aid&&d.t&&d.t.length)return d;
+    }catch(e){}
+    return null;
+}
+function statsSaveList(yr,allT){
+    try{localStorage.setItem(STATS_LK,JSON.stringify({ts:Date.now(),yr:yr,aid:D.aid,t:allT.map(statsSlim)}))}catch(e){}
+}
+
+// force: true re-runs the search queries and re-scans everything still open-ended.
+// 'hard' also throws away the permanent verdicts and rebuilds the cache from zero.
+async function loadStats(force){
     var run=++_statsRun;
+    if(force==='hard'){try{localStorage.removeItem(STATS_CK);localStorage.removeItem('fd_resp6')}catch(e){}}
     try{
         var yr=new Date().getFullYear(),now=new Date();
         var tags=["branchkya","KYA Internal"];
         var mes="cf_rand412401:'MES'";
         var el=document.getElementById('ticket-stats');
-        var CK='fd_resp6';
-        var cache=JSON.parse(localStorage.getItem(CK)||'{}');
+        var cache=statsReadCache();
         var merged=new Set();
         var noResp=new Set();
         Object.keys(cache).forEach(function(k){
-            if(cache[k]==='merged')merged.add(Number(k));
-            else if(!cache[k])noResp.add(Number(k));
+            var v=cache[k];
+            if(v==='merged')merged.add(Number(k));
+            else if(v!==true)noResp.add(Number(k));
         });
         _statsMerged=merged;_statsNoResp=noResp;
 
-        function render(allT,myT){
+        function render(allT,myT,scanDone,scanTotal){
             if(_statsRun!==run)return;
             var total=0,totalClosed=0,closed=0;
             allT.forEach(function(t){if(!merged.has(t.id)){total++;if(t.status===4||t.status===5){totalClosed++;if(t.responder_id===D.aid)closed++}}});
@@ -26,15 +71,15 @@ async function loadStats(){
             var pct=total>0?Math.round(mine/total*100):0;
             var clr=pct>=30?'green':pct>=20?'amber':'red';
             var clrC=closedPct>=30?'green':closedPct>=20?'amber':'red';
-            el.innerHTML='<span class="stat-group"><span class="stat-label">Assigned</span>'+mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span></span><span class="stat-group"><span class="stat-label">Resolved</span>'+closed+' / '+totalClosed+' <span class="pct '+clrC+'">'+closedPct+'%</span></span>';
-            el.title=D.anm+' '+yr+': Assigned '+mine+' de '+total+' ('+pct+'%) · Resolved '+closed+' de '+totalClosed+' ('+closedPct+'%)';
+            var scan=scanTotal?'<span class="stat-scan">'+scanDone+'/'+scanTotal+'</span>':'';
+            el.innerHTML='<span class="stat-group"><span class="stat-label">Assigned</span>'+mine+' / '+total+' <span class="pct '+clr+'">'+pct+'%</span></span><span class="stat-group"><span class="stat-label">Resolved</span>'+closed+' / '+totalClosed+' <span class="pct '+clrC+'">'+closedPct+'%</span></span>'+scan;
+            el.title=D.anm+' '+yr+': Assigned '+mine+' de '+total+' ('+pct+'%) · Resolved '+closed+' de '+totalClosed+' ('+closedPct+'%)'+(scanTotal?' · scanning '+scanDone+'/'+scanTotal:'');
             el.style.display='';
+            var rb=document.getElementById('stats-refresh');
+            if(rb)rb.style.display='';
         }
 
-        var allT,myT;
-        if(_statsCache.allT&&Date.now()-_statsCache.ts<900000){
-            allT=_statsCache.allT;myT=_statsCache.myT;
-        }else{
+        async function fetchLists(){
             async function pages(q){
                 var out=[],pg=1;
                 while(pg<=10){
@@ -58,48 +103,96 @@ async function loadStats(){
                     queries.push('"'+"tag:'"+tags[ti]+"' AND "+mes+' AND '+df+'"');
                 }
             }
-            if(_statsRun!==run)return;
             var results=await Promise.all(queries.map(function(q){return pages(q)}));
-
-            var seen=new Set();allT=[];myT=[];
-            var yrs=String(yr);
-            for(var i=0;i<results.length;i++)results[i].forEach(function(t){
+            var seen=new Set(),a=[],m=[],yrs=String(yr);
+            for(var ri=0;ri<results.length;ri++)results[ri].forEach(function(t){
                 if(!seen.has(t.id)&&t.created_at&&t.created_at.slice(0,4)===yrs){
-                    seen.add(t.id);allT.push(t);
-                    if(t.responder_id===D.aid)myT.push(t);
+                    seen.add(t.id);a.push(t);
+                    if(t.responder_id===D.aid)m.push(t);
                 }
             });
-            _statsCache={ts:Date.now(),allT:allT,myT:myT,resp6:cache};
+            return{allT:a,myT:m};
         }
+
+        var allT=null,myT=null,needFetch=true;
+        if(!force&&_statsCache.allT&&Date.now()-_statsCache.ts<STATS_TTL){
+            allT=_statsCache.allT;myT=_statsCache.myT;needFetch=false;
+        }else if(!force){
+            // Paint last session's numbers straight away, then decide whether the
+            // network round trip is even needed. This is what made a cold start
+            // look like the stats "were not updating".
+            var disk=statsReadList(yr);
+            if(disk){
+                allT=disk.t;myT=allT.filter(function(t){return t.responder_id===D.aid});
+                _statsCache={ts:disk.ts,allT:allT,myT:myT,resp6:cache};
+                render(allT,myT);
+                needFetch=Date.now()-disk.ts>=STATS_TTL;
+            }
+        }
+        if(needFetch){
+            if(_statsRun!==run)return;
+            var f=await fetchLists();
+            if(_statsRun!==run)return;
+            allT=f.allT;myT=f.myT;
+            _statsCache={ts:Date.now(),allT:allT,myT:myT,resp6:cache};
+            statsSaveList(yr,allT);
+        }
+        if(!allT)return;
 
         render(allT,myT);
 
-        var myIds=new Set(myT.map(function(t){return t.id}));
-        var unchecked=allT.filter(function(t){return !(t.id in cache)||cache[t.id]===false});
-        if(unchecked.length>0){
-            for(var b=0;b<unchecked.length;b+=5){
+        var stale=allT.filter(function(t){
+            var v=cache[t.id];
+            if(v===undefined)return true;
+            if(v==='merged'||v===true)return false;
+            return !v.n||v.n!==t.updated_at;
+        });
+        if(stale.length>0){
+            // Pace against the actual rate limit: start fast and back off only when
+            // the API pushes back. The old fixed 5-per-1.5s ceiling capped the scan
+            // at ~200 tickets/min no matter how much headroom there was.
+            var size=8,delay=300,doneN=0;
+            for(var b=0;b<stale.length;b+=size){
                 if(_statsRun!==run)return;
-                var batch=unchecked.slice(b,b+5);
+                var batch=stale.slice(b,b+size);
+                var before=_rate429;
                 await Promise.all(batch.map(function(t){
                     return get('tickets/'+t.id+'/conversations?per_page=100').then(function(convs){
                         var cl=convs||[];
                         var last=cl.length?cl[cl.length-1]:null;
                         var isMerged=last&&last.private&&last.body_text&&last.body_text.indexOf('merged into ticket')!==-1;
-                        if(isMerged){cache[t.id]='merged';merged.add(t.id);}
-                        else{
-                            var has=cl.some(function(c){return c.incoming===false&&!c.private});
-                            cache[t.id]=has;
-                            if(!has)noResp.add(t.id);
+                        if(isMerged){cache[t.id]='merged';merged.add(t.id);noResp.delete(t.id)}
+                        else if(cl.some(function(c){return c.incoming===false&&!c.private})){
+                            cache[t.id]=true;noResp.delete(t.id);
+                        }else{
+                            cache[t.id]={n:t.updated_at||''};noResp.add(t.id);
                         }
                     }).catch(function(){});
                 }));
-                render(allT,myT);
-                if(b%25===0){try{localStorage.setItem(CK,JSON.stringify(cache))}catch(e){}}
-                await new Promise(function(r){setTimeout(r,1500)});
+                doneN+=batch.length;
+                if(_rate429>before)delay=Math.min(delay*2,4000);
+                else if(delay>300)delay=Math.max(300,Math.round(delay*0.7));
+                render(allT,myT,doneN,stale.length);
+                if(b%40===0)statsSaveCache(cache);
+                if(b+size<stale.length)await new Promise(function(r){setTimeout(r,delay)});
             }
-            try{localStorage.setItem(CK,JSON.stringify(cache))}catch(e){}
+            statsSaveCache(cache);
+            render(allT,myT);
         }
     }catch(e){console.warn('loadStats',e)}
+}
+
+async function refreshStats(ev){
+    if(!D.aid)return;
+    var hard=!!(ev&&(ev.shiftKey||ev.altKey));
+    var btn=document.getElementById('stats-refresh');
+    if(btn){btn.disabled=true;btn.classList.add('spinning')}
+    try{
+        if(hard)try{localStorage.removeItem(STATS_LK)}catch(e){}
+        await loadStats(hard?'hard':true);
+    }finally{
+        if(btn){btn.disabled=false;btn.classList.remove('spinning')}
+    }
 }
 
 function animateNumbers(){
@@ -193,7 +286,7 @@ function renderDashboard(){
 
     var real=totalRaw-mergedCount;
     var agents=Object.keys(agentData).map(function(k){var o=agentData[k];o._rid=Number(k);return o}).sort(function(a,b){return b.assigned-a.assigned});
-    var cache=_statsCache.resp6||JSON.parse(localStorage.getItem('fd_resp6')||'{}');
+    var cache=_statsCache.resp6||statsReadCache();
     var cacheKeys=Object.keys(cache);
 
     _ddFilters={};_ddNext=0;
@@ -377,8 +470,8 @@ function renderDashboard(){
     });
     h+='</div>';
 
-    var unchecked=allT.filter(function(t){return !(String(t.id) in cache)}).length;
-    h+='<div class="dash-footer">Data: _statsCache ('+allT.length+' tickets) · Cache: fd_resp6 ('+cacheKeys.length+' entries, '+unchecked+' pending) · Age: '+Math.round((Date.now()-_statsCache.ts)/60000)+' min</div>';
+    var unchecked=allT.filter(function(t){var v=cache[t.id];return v===undefined||(v!=='merged'&&v!==true&&(!v.n||v.n!==t.updated_at))}).length;
+    h+='<div class="dash-footer">Data: _statsCache ('+allT.length+' tickets) · Cache: '+STATS_CK+' ('+cacheKeys.length+' entries, '+unchecked+' pending) · Age: '+Math.round((Date.now()-_statsCache.ts)/60000)+' min</div>';
     h+='</div>';
 
     document.getElementById('content').innerHTML=h;

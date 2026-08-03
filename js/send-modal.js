@@ -169,7 +169,9 @@ async function confirmSendReply(){
             window._aiOriginal=null;
         }
 
-        try{var r6=JSON.parse(localStorage.getItem('fd_resp6')||'{}');r6[D.cur.id]=true;localStorage.setItem('fd_resp6',JSON.stringify(r6));_statsNoResp.delete(D.cur.id);if(_statsCache.resp6)_statsCache.resp6[D.cur.id]=true}catch(e){}
+        // We just replied in public, so the "has an agent response" verdict is now
+        // permanent - record it directly instead of letting the scan rediscover it.
+        try{var r7=statsReadCache();r7[D.cur.id]=true;statsSaveCache(r7);_statsNoResp.delete(D.cur.id);if(_statsCache.resp6)_statsCache.resp6[D.cur.id]=true}catch(e){}
 
         if(window._resolveOnSend){
             D.allOpen=D.allOpen.filter(t=>t.id!==D.cur.id);

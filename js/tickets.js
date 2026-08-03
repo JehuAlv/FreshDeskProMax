@@ -282,6 +282,6 @@ async function doSearch(){
     }catch(e){document.getElementById('list').innerHTML='<div class="empty-msg">'+esc(e.message)+'</div>'}
 }
 function filt(b,f){document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');D.fl=f;D.pg=1;document.getElementById('inp-search').value='';if(f==='new'){if(D.newTks.length>0){applyFilter()}else{load()}}else if(D.allOpen.length>0){applyFilter()}else{load()}}
-async function refresh(){showProg(0,1);D.allOpen=[];D.lr={};D.newTks=[];D._earlyNewIds=null;_statsCache={ts:0,allT:null,myT:null};var cn=D._cacheNew||{};if(Object.keys(cn).length)D._earlyNewIds=new Set(Object.keys(cn).map(Number));D._cacheNew={};localStorage.removeItem('fd_cache_new');await Promise.all([loadNewTickets(),loadAll()]);applyFilter();setTimeout(loadStats,3000)}
+async function refresh(){showProg(0,1);D.allOpen=[];D.lr={};D.newTks=[];D._earlyNewIds=null;_statsCache={ts:0,allT:null,myT:null};var cn=D._cacheNew||{};if(Object.keys(cn).length)D._earlyNewIds=new Set(Object.keys(cn).map(Number));D._cacheNew={};localStorage.removeItem('fd_cache_new');await Promise.all([loadNewTickets(),loadAll()]);applyFilter();setTimeout(function(){loadStats(true)},3000)}
 function pg(d){D.pg+=d;if(D.pg<1)D.pg=1;load()}
 function up(){document.getElementById('pgr').style.display='flex';document.getElementById('pb').disabled=D.pg<=1;document.getElementById('pn').disabled=D.pg>=D.pgs;document.getElementById('pi').textContent='Page '+D.pg}

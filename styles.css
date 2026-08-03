@@ -49,6 +49,11 @@ nav .ticket-stats .pct{font-weight:700;padding:1px 6px;border-radius:8px}
 nav .ticket-stats .pct.green{background:#dcfce7;color:#16a34a}
 nav .ticket-stats .pct.amber{background:#fef3c7;color:#d97706}
 nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
+nav .ticket-stats .stat-scan{font-weight:600;color:var(--g400);background:var(--g100);padding:2px 8px;border-radius:10px}
+nav .stats-refresh{background:none;border:none;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;margin-left:4px;color:var(--g400);transition:color .15s}
+nav .stats-refresh:hover{color:var(--g600)}
+nav .stats-refresh:disabled{cursor:default;opacity:.5}
+nav .stats-refresh.spinning{animation:spin .8s linear infinite}
 
 /* ===== DASHBOARD ===== */
 .dash{padding:32px 40px 80px;max-width:1100px;animation:fadeUp .3s ease}

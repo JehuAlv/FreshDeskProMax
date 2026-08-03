@@ -1,6 +1,9 @@
 function toggleKey(){const i=document.getElementById('inp-key');i.type=i.type==='password'?'text':'password'}
 
 var _q=[],_qPri=[],_qRun=0,_qPriRun=0,_qMax=6,_qNormMax=4;
+// Bumped on every throttled response so long batch loops can pace themselves
+// against the real rate limit instead of a hardcoded guess.
+var _rate429=0;
 function _qFlush(){
     while(_qPri.length&&_qRun<_qMax){_qRun++;_qPriRun++;var pj=_qPri.shift();pj()}
     while(_q.length&&_qRun<_qMax&&(_qRun-_qPriRun)<_qNormMax){_qRun++;var nj=_q.shift();nj()}
@@ -17,7 +20,7 @@ function api(p,opts){
                 if(opts.body)init.body=opts.body;
                 fetch('/fd/'+p,init).then(function(r){
                     if(r.status===429&&retries<3){
-                        retries++;
+                        retries++;_rate429++;
                         var ra=r.headers.get('Retry-After');
                         var wait=ra?parseInt(ra)*1000:Math.pow(2,retries)*1000;
                         setTimeout(attempt,wait);return;
