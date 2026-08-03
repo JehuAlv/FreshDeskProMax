@@ -237,7 +237,7 @@ nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
 .reply-sidebar .sb-stat{text-align:center;padding:8px 4px;border-radius:var(--r3);background:var(--g50)}
 .reply-sidebar .sb-stat .n{font:700 18px/1 var(--f);color:var(--blue);letter-spacing:-.3px}
 .reply-sidebar .sb-stat .l{font:500 9px/1 var(--f);color:var(--g400);margin-top:4px;text-transform:uppercase;letter-spacing:.3px}
-.reply-sidebar .sb-msg{padding:8px 10px;border-radius:var(--r3);margin-bottom:6px;font:12px/1.5 var(--f);color:var(--g700);white-space:pre-wrap;border-left:2px solid}
+.reply-sidebar .sb-msg{padding:8px 10px;border-radius:var(--r3);margin-bottom:6px;font:12px/1.5 var(--f);color:var(--g700);white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;border-left:2px solid}
 .reply-sidebar .sb-msg:last-child{margin-bottom:0}
 .reply-sidebar .sb-msg.customer{background:var(--purple-bg);border-color:var(--purple)}
 .reply-sidebar .sb-msg.agent{background:var(--blue-bg);border-color:var(--blue)}
@@ -308,7 +308,7 @@ nav .ticket-stats .pct.red{background:#fee2e2;color:#dc2626}
 .bubble.customer .bh .nm::before{background:var(--purple)}
 .bubble.note .bh .nm::before{background:var(--green)}
 .bubble .bh .dt{font:12px var(--f);color:var(--g400);background:var(--g50);padding:2px 10px;border-radius:980px}
-.bubble .bb{font:13px/1.8 var(--f);color:var(--g700)}
+.bubble .bb{font:13px/1.8 var(--f);color:var(--g700);overflow-wrap:break-word;word-break:break-word}
 .bubble .bb img{max-width:100%;border-radius:var(--r3);margin:8px 0}
 .bubble .bb a{color:var(--blue);text-decoration:none}
 .bubble .bb a:hover{text-decoration:underline}

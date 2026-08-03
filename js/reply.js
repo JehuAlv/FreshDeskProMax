@@ -531,12 +531,12 @@ function replyHTML(t,c){
             const needsTrunc=cleanTxt.length>400;
             const preview=needsTrunc?cleanTxt.substring(0,400)+'…':cleanTxt;
             if(needsTrunc)window._ctxMsgs[mi]={short:preview,full:cleanTxt,expanded:false};
-            h+='<div style="padding:10px 12px;border-radius:10px;background:'+bg+';border-left:3px solid '+clr+';cursor:'+(needsTrunc?'pointer':'default')+';animation:fadeSlideIn .2s ease '+(mi*60)+'ms both;transition:all .15s" '
+            h+='<div style="padding:10px 12px;border-radius:10px;background:'+bg+';border-left:3px solid '+clr+';cursor:'+(needsTrunc?'pointer':'default')+';animation:fadeSlideIn .2s ease '+(mi*60)+'ms both;transition:all .15s;overflow:hidden;min-width:0" '
                 +(needsTrunc?'onclick="toggleCtxMsg('+mi+')"':'')+'>'
                 +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
                 +'<span style="font:600 11px/1 var(--f);color:'+clr+';text-transform:uppercase">'+esc(lbl)+'</span>'
                 +'<span style="font:11px var(--f);color:var(--g400)">'+ago(new Date(msg.d))+' ago'+(needsTrunc?' · <span id="ctx-hint-'+mi+'" style="color:var(--g400);font-style:italic">click to expand</span>':'')+'</span></div>'
-                +'<div id="ctx-msg-'+mi+'" style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap">'+esc(preview)+'</div></div>';
+                +'<div id="ctx-msg-'+mi+'" style="font:13px/1.5 var(--f);color:var(--g700);white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word">'+esc(preview)+'</div></div>';
         });
         h+='</div>';
     }
